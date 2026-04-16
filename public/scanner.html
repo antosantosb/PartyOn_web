@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scanner Portero</title>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Estilos específicos para el escáner */
+        #reader { width: 100%; max-width: 500px; margin: 0 auto; border-radius: 10px; overflow: hidden; }
+        .resultado { margin-top: 20px; padding: 20px; border-radius: 10px; display: none; }
+    </style>
+</head>
+<body>
+    <div class="bg-blur"></div>
+
+    <main class="container" style="flex-direction: column; justify-content: flex-start; padding-top: 50px;">
+        <div class="glass-card" style="width: 100%; max-width: 600px;">
+            <h1>Scan del codigo QR</h1>
+            
+            <div id="reader"></div>
+
+            <div id="mensaje-servidor" class="resultado"></div>
+            
+            <button onclick="reiniciarEscaner()" class="btn-neon" style="margin-top: 20px; display:none;" id="btn-re-scan">
+                Escanear Otro
+            </button>
+        </div>
+    </main>
+
+    <script>
+        let html5QrcodeScanner;
+
+        function onScanSuccess(decodedText, decodedResult) {
+            console.log(`Código escaneado: ${decodedText}`);
+            
+            // 1. Detenemos el escáner
+            html5QrcodeScanner.clear();
+
+            try {
+                // Intentamos leer la URL del QR
+                const urlLeida = new URL(decodedText);
+                
+                // Extraemos solo el parámetro 'id' de la URL
+                const idEntrada = urlLeida.searchParams.get("id");
+
+                if (!idEntrada) {
+                    throw new Error("QR sin ID válido");
+                }
+
+                // 2. Usamos una ruta RELATIVA. 
+                // Esto hace que funcione tanto en localhost como en Ngrok automáticamente.
+                verificarEntrada(idEntrada);
+
+            } catch (e) {
+                // Si el QR no es una URL válida o no es de nuestro sistema
+                alert("❌ Código QR inválido para este sistema.");
+                reiniciarEscaner();
+            }
+        }
+
+        async function verificarEntrada(idEntrada) {
+            const displayDiv = document.getElementById('mensaje-servidor');
+            const btnRescan = document.getElementById('btn-re-scan');
+            
+            displayDiv.style.display = 'block';
+            displayDiv.innerHTML = "⏳ Verificando...";
+            displayDiv.style.backgroundColor = "rgba(0,0,0,0.5)";
+            displayDiv.style.color = "white";
+
+            try {
+                // Hacemos la petición al servidor (AJAX)
+                const response = await fetch('/validar', {
+                    method: 'POST', 
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        id: idEntrada,
+                    secret: "portero-secreto-123" // Clave fija para el portero
+                    })
+                    }
+                );
+                
+                // Leemos la respuesta. OJO: Aquí tu servidor aún devuelve HTML
+                // Pronto lo cambiaremos a JSON, pero por ahora leemos texto
+                const data = await response.json(); 
+                
+                if(data.status === 'success') {
+                    displayDiv.innerHTML = `<h1 style="color: #00ff00; font-size: 3rem;">VALIDO</h1><p>${data.message}</p>`;
+                } else if (data.status === 'warning') {
+                    displayDiv.innerHTML = `<h1 style="color: orange; font-size: 3rem;">⚠️</h1><p>${data.message}</p>`;
+                } else {
+                    displayDiv.innerHTML = `<h1 style="color: red; font-size: 3rem;">⛔</h1><p>${data.message}</p>`;
+                }
+
+                // Mostramos botón para seguir trabajando
+                btnRescan.style.display = 'inline-block';
+
+            } catch (error) {
+                displayDiv.innerHTML = "❌ Error de conexión con el servidor, avisale a Antonio.";
+                displayDiv.style.color = "red";
+            }
+        }
+
+        function reiniciarEscaner() {
+            document.getElementById('mensaje-servidor').style.display = 'none';
+            document.getElementById('btn-re-scan').style.display = 'none';
+            iniciarCamara();
+        }
+
+        function iniciarCamara() {
+            html5QrcodeScanner = new Html5QrcodeScanner(
+                "reader", { fps: 10, qrbox: 250 }
+            );
+            html5QrcodeScanner.render(onScanSuccess);
+        }
+
+        // Arrancamos al cargar la página
+        iniciarCamara();
+    </script>
+</body>
+</html>

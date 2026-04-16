@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Party On 2026 | Reserva tu entrada</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <div class="bg-blur"></div>
+
+    <main class="container">
+        <section class="info-section">
+            <span class="badge">PRÓXIMO EVENTO</span>
+            <h1>PARTY <br> ON <span class="highlight">2026</span></h1>
+            <p class="details">
+                📅 20 de Febrero, 11:00pm - 3:00am <br>
+                📍 Vai Com Deus, Braga <br>
+                🎵 Salsa, Bachata y mucho más!
+            </p>
+            <p class="description">
+                La fiesta más esperada está de vuelta! Te la vas a perder? <br>
+                Aforo limitado. Reserva tu entrada ahora!
+            </p>
+        </section>
+
+        <section class="form-section">
+            <div class="glass-card">
+                <h2>Reserva tu Entrada</h2>
+                <form action="/comprar" method="POST">
+                    <div class="input-group">
+                        <label>Nombre Completo</label>
+                        <input type="text" name="usuario_nombre" placeholder="Tu nombre..." required>
+                    </div>
+                    
+                    <div class="input-group">
+                        <label>Email (Te enviaremos la entrada aqui)</label>
+                        <input type="email" name="usuario_email" placeholder="tu@email.com" required>
+                    </div>
+
+                    <div class="number">
+                        <label>Cantidad de Entradas</label>
+                        <input type="number" name="cantidad_entradas" min="1" max="10" value="1" required>
+                    </div>
+                    
+                    <button type="submit" class="btn-neon">
+                        COMPRAR ENTRADA ➔
+                    </button>
+                </form>
+                <p class="footer-text">Pago seguro vía MBWay (Simulado)</p>
+            </div>
+        </section>
+    </main>
+</body>
+</html>
