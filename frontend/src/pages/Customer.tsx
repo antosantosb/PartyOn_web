@@ -3,15 +3,16 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { MapPin, ArrowRight, X, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../lib/store';
+import { StripeCheckout } from '../components/StripeCheckout';
 
 export default function Customer() {
   const { eventData, theme, loading } = useStore();
   const [tickets, setTickets] = useState(1);
   const [selectedTicketId, setSelectedTicketId] = useState(eventData.ticketTypes[0]?.id || '');
   const [showCheckout, setShowCheckout] = useState(false);
+  // 'details' = personal info form, 'payment' = Stripe card form
+  const [paymentStep, setPaymentStep] = useState<'details' | 'payment'>('details');
   const [purchased, setPurchased] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   const [buyerName, setBuyerName] = useState('');
   const [buyerEmail, setBuyerEmail] = useState('');
@@ -19,41 +20,19 @@ export default function Customer() {
 
   const selectedTicket = eventData?.ticketTypes.find(t => t.id === selectedTicketId) || eventData?.ticketTypes[0];
   const isSoldOut = selectedTicket?.stock === 0;
-  const lineup = (eventData?.lineup || eventData?.artistInfo || '').split(',').map((s: string) => s.trim()).filter(Boolean);
-
-  const handleCheckoutSubmit = async () => {
-    if (!buyerName || !buyerEmail || isLoading) return;
-    setCheckoutError(null);
-    setIsLoading(true);
-    try {
-      const res = await fetch('http://localhost:3000/api/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ buyerName, buyerEmail, buyerPhone, ticketId: selectedTicketId, quantity: tickets })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setPurchased(true);
-      } else {
-        setCheckoutError(data.error || 'Error al procesar la compra');
-      }
-    } catch {
-      setCheckoutError('No se pudo conectar con el servidor. Inténtalo de nuevo.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const lineup = (eventData?.lineup || '').split(',').map((s: string) => s.trim()).filter(Boolean);
 
   const resetState = () => {
     setPurchased(false);
     setShowCheckout(false);
+    setPaymentStep('details');
     setTickets(1);
     setBuyerName('');
     setBuyerEmail('');
     setBuyerPhone('');
   };
 
-  if (isLoading) return (
+  if (loading) return (
     <div className="min-h-screen bg-[#0c0c0c] flex items-center justify-center" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
       <div className="flex items-center gap-3 text-white/30">
         <Loader2 className="w-5 h-5 animate-spin" />
@@ -205,92 +184,85 @@ export default function Customer() {
             {/* Backdrop */}
             <motion.div
               className="fixed inset-0 z-40 bg-black/80 backdrop-blur-sm"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowCheckout(false)}
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => { setShowCheckout(false); setPaymentStep('details'); }}
             />
             {/* Panel */}
             <motion.div
               className="fixed z-50 bottom-0 left-0 right-0 md:inset-0 md:flex md:items-center md:justify-center p-0 md:p-6"
-              initial={{ opacity: 0, y: 60 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 60 }}
+              initial={{ opacity: 0, y: 60 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 60 }}
               transition={{ type: 'spring', damping: 26, stiffness: 300 }}
             >
-              <div
-                className="relative bg-[#111] border border-white/10 rounded-t-2xl md:rounded-2xl w-full md:max-w-md p-7"
-              >
+              <div className="relative bg-[#111] border border-white/10 rounded-t-2xl md:rounded-2xl w-full md:max-w-md p-7">
                 {/* Close */}
                 <button
-                  onClick={() => setShowCheckout(false)}
+                  onClick={() => { setShowCheckout(false); setPaymentStep('details'); }}
                   className="absolute top-5 right-5 text-white/30 hover:text-white transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
 
-                {/* Order summary bar */}
-                <div className="flex items-center justify-between mb-7 pb-5 border-b border-white/8">
-                  <div>
-                    <p className="text-xs font-mono text-white/40 uppercase tracking-wider mb-1">Tu pedido</p>
-                    <p className="font-semibold">{selectedTicket.name} × {tickets}</p>
-                  </div>
-                  <p className="text-2xl font-bold" style={{ color: theme.primaryColor }}>
-                    {(tickets * selectedTicket.price).toFixed(0)}€
-                  </p>
-                </div>
-
-                <div className="space-y-3">
-                  <input
-                    type="text"
-                    value={buyerName}
-                    onChange={e => setBuyerName(e.target.value)}
-                    placeholder="Nombre completo"
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3.5 text-white text-sm placeholder-white/30 focus:outline-none focus:border-white/25 transition-colors"
-                  />
-                  <input
-                    type="email"
-                    value={buyerEmail}
-                    onChange={e => setBuyerEmail(e.target.value)}
-                    placeholder="Email — aquí recibirás tu QR"
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3.5 text-white text-sm placeholder-white/30 focus:outline-none focus:border-white/25 transition-colors"
-                  />
-                  <input
-                    type="tel"
-                    value={buyerPhone}
-                    onChange={e => setBuyerPhone(e.target.value)}
-                    placeholder="Teléfono para MB Way (opcional)"
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3.5 text-white text-sm placeholder-white/30 focus:outline-none focus:border-white/25 transition-colors"
-                  />
-
-                  {/* Inline error message — no alert() */}
-                  {checkoutError && (
-                    <div className="flex items-start gap-2 text-sm text-red-400 bg-red-400/8 border border-red-400/20 rounded-lg px-3 py-2.5">
-                      <span className="mt-0.5 flex-shrink-0">⚠</span>
-                      <span>{checkoutError}</span>
-                    </div>
+                <AnimatePresence mode="wait">
+                  {/* ── Step 1: Personal Details ── */}
+                  {paymentStep === 'details' && (
+                    <motion.div key="details" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
+                      <p className="text-xs font-mono text-white/30 uppercase tracking-wider mb-1">Tus datos</p>
+                      <div className="flex items-center justify-between mb-6">
+                        <p className="font-semibold">{selectedTicket.name} × {tickets}</p>
+                        <p className="text-xl font-bold" style={{ color: theme.primaryColor }}>{(tickets * selectedTicket.price).toFixed(0)}€</p>
+                      </div>
+                      <div className="space-y-3">
+                        <input
+                          type="text" value={buyerName} onChange={e => setBuyerName(e.target.value)}
+                          placeholder="Nombre completo"
+                          className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3.5 text-white text-sm placeholder-white/30 focus:outline-none focus:border-white/25 transition-colors"
+                        />
+                        <input
+                          type="email" value={buyerEmail} onChange={e => setBuyerEmail(e.target.value)}
+                          placeholder="Email — aquí recibirás tu QR"
+                          className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3.5 text-white text-sm placeholder-white/30 focus:outline-none focus:border-white/25 transition-colors"
+                        />
+                        <input
+                          type="tel" value={buyerPhone} onChange={e => setBuyerPhone(e.target.value)}
+                          placeholder="Teléfono para MB Way (opcional)"
+                          className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3.5 text-white text-sm placeholder-white/30 focus:outline-none focus:border-white/25 transition-colors"
+                        />
+                        <button
+                          disabled={!buyerName || !buyerEmail}
+                          onClick={() => setPaymentStep('payment')}
+                          className="w-full mt-2 py-4 rounded-lg font-semibold text-black text-sm uppercase tracking-wider transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-110"
+                          style={{ backgroundColor: theme.primaryColor }}
+                        >
+                          Continuar al pago <ArrowRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <p className="text-center text-xs text-white/20 mt-4">Pago seguro con tarjeta via Stripe</p>
+                    </motion.div>
                   )}
 
-                  <button
-                    onClick={handleCheckoutSubmit}
-                    disabled={!buyerName || !buyerEmail || isLoading}
-                    className="w-full mt-2 py-4 rounded-lg font-semibold text-black text-sm uppercase tracking-wider transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                    style={{ backgroundColor: theme.primaryColor }}
-                  >
-                    {isLoading ? (
-                      <span className="flex items-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Procesando...
-                      </span>
-                    ) : (
-                      <>Confirmar y pagar <ArrowRight className="w-4 h-4" /></>
-                    )}
-                  </button>
-                </div>
-
-                <p className="text-center text-xs text-white/20 mt-4">
-                  Recibirás tu entrada QR por email al instante.
-                </p>
+                  {/* ── Step 2: Stripe Card Form ── */}
+                  {paymentStep === 'payment' && (
+                    <motion.div key="payment" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}>
+                      <button
+                        onClick={() => setPaymentStep('details')}
+                        className="text-xs text-white/30 hover:text-white/60 transition-colors font-mono flex items-center gap-1 mb-5"
+                      >
+                        ← Volver
+                      </button>
+                      <StripeCheckout
+                        theme={theme}
+                        buyerName={buyerName}
+                        buyerEmail={buyerEmail}
+                        buyerPhone={buyerPhone}
+                        ticketId={selectedTicketId}
+                        quantity={tickets}
+                        selectedTicket={selectedTicket}
+                        onClose={() => { setShowCheckout(false); setPaymentStep('details'); }}
+                        onSuccess={(_piId) => { setPurchased(true); setShowCheckout(false); }}
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             </motion.div>
           </>
