@@ -8,13 +8,15 @@ export const getStoreData = async (req: Request, res: Response) => {
     });
 
     if (!event) {
-      // Seed default
+      // Seed default event on first run
       event = await prisma.event.create({
         data: {
           name: "EL PERREO INTENSO",
+          tagline: "La noche que no olvidarás",
           date: "SÁBADO 15 NOVIEMBRE",
           location: "CLUB NOSTALGIA, MADRID",
           artistInfo: "DJ ALVARO + GUEST STARS",
+          lineup: "DJ Álvaro, MC Regueton, La Reina Latina",
           logoText1: "PARTY",
           logoText2: "ON",
           ticketTypes: {
@@ -46,29 +48,35 @@ export const updateStoreData = async (req: Request, res: Response) => {
   try {
     const { eventData, theme } = req.body;
 
-    // Update event
-    const updatedEvent = await prisma.event.update({
+    if (!eventData?.id) {
+      return res.status(400).json({ error: "Missing event ID" });
+    }
+
+    // Update event — including new tagline & lineup fields
+    await prisma.event.update({
       where: { id: eventData.id },
       data: {
         name: eventData.partyName || eventData.name,
+        tagline: eventData.tagline ?? null,
         date: eventData.date,
         location: eventData.location,
         artistInfo: eventData.artistInfo,
+        lineup: eventData.lineup ?? null,
         logoText1: eventData.logoText1,
         logoText2: eventData.logoText2,
       }
     });
 
     // Update Theme
-    if (theme && theme.id) {
-       await prisma.theme.update({
-         where: { id: theme.id },
-         data: {
-           primaryColor: theme.primaryColor,
-           secondaryColor: theme.secondaryColor,
-           backgroundImage: theme.backgroundImage
-         }
-       });
+    if (theme?.id) {
+      await prisma.theme.update({
+        where: { id: theme.id },
+        data: {
+          primaryColor: theme.primaryColor,
+          secondaryColor: theme.secondaryColor,
+          backgroundImage: theme.backgroundImage
+        }
+      });
     }
 
     res.json({ success: true });

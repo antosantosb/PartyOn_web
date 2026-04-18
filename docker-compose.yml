@@ -24,6 +24,10 @@ services:
     environment:
       - DATABASE_URL=postgresql://admin:adminpassword@db:5432/partyon?schema=public
       - PORT=3000
+      # Set this to your real domain before going live:
+      # - FRONTEND_URL=https://yourdomain.com
+    volumes:
+      - uploads_data:/app/uploads
     depends_on:
       - db
 
@@ -41,3 +45,4 @@ services:
 
 volumes:
   db_data:
+  uploads_data:

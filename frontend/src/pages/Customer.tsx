@@ -1,27 +1,29 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, ArrowRight, X } from 'lucide-react';
+import { MapPin, ArrowRight, X, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../lib/store';
 
 export default function Customer() {
-  const { eventData, theme } = useStore();
+  const { eventData, theme, loading } = useStore();
   const [tickets, setTickets] = useState(1);
   const [selectedTicketId, setSelectedTicketId] = useState(eventData.ticketTypes[0]?.id || '');
   const [showCheckout, setShowCheckout] = useState(false);
   const [purchased, setPurchased] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   const [buyerName, setBuyerName] = useState('');
   const [buyerEmail, setBuyerEmail] = useState('');
   const [buyerPhone, setBuyerPhone] = useState('');
 
-  const selectedTicket = eventData.ticketTypes.find(t => t.id === selectedTicketId) || eventData.ticketTypes[0];
+  const selectedTicket = eventData?.ticketTypes.find(t => t.id === selectedTicketId) || eventData?.ticketTypes[0];
   const isSoldOut = selectedTicket?.stock === 0;
-  const lineup = (eventData.lineup || eventData.artistInfo || '').split(',').map((s: string) => s.trim()).filter(Boolean);
+  const lineup = (eventData?.lineup || eventData?.artistInfo || '').split(',').map((s: string) => s.trim()).filter(Boolean);
 
   const handleCheckoutSubmit = async () => {
     if (!buyerName || !buyerEmail || isLoading) return;
+    setCheckoutError(null);
     setIsLoading(true);
     try {
       const res = await fetch('http://localhost:3000/api/checkout', {
@@ -33,10 +35,10 @@ export default function Customer() {
       if (data.success) {
         setPurchased(true);
       } else {
-        alert(data.error);
+        setCheckoutError(data.error || 'Error al procesar la compra');
       }
     } catch {
-      alert('Error al procesar. Inténtalo de nuevo.');
+      setCheckoutError('No se pudo conectar con el servidor. Inténtalo de nuevo.');
     } finally {
       setIsLoading(false);
     }
@@ -51,7 +53,20 @@ export default function Customer() {
     setBuyerPhone('');
   };
 
-  if (!selectedTicket) return <div className="min-h-screen bg-black flex items-center justify-center text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Cargando...</div>;
+  if (isLoading) return (
+    <div className="min-h-screen bg-[#0c0c0c] flex items-center justify-center" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+      <div className="flex items-center gap-3 text-white/30">
+        <Loader2 className="w-5 h-5 animate-spin" />
+        <span className="text-sm font-mono">Cargando evento...</span>
+      </div>
+    </div>
+  );
+
+  if (!selectedTicket) return (
+    <div className="min-h-screen bg-[#0c0c0c] flex items-center justify-center" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+      <p className="text-white/30 text-sm font-mono">Cargando entradas...</p>
+    </div>
+  );
 
   // Parse date for the ticket stub display
   const dateParts = eventData.date.toUpperCase().split(' ');
@@ -177,7 +192,6 @@ export default function Customer() {
               setSelectedTicketId={setSelectedTicketId}
               selectedTicket={selectedTicket}
               isSoldOut={isSoldOut}
-              dateParts={dateParts}
               onContinue={() => setShowCheckout(true)}
             />
           </motion.div>
@@ -249,6 +263,14 @@ export default function Customer() {
                     className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3.5 text-white text-sm placeholder-white/30 focus:outline-none focus:border-white/25 transition-colors"
                   />
 
+                  {/* Inline error message — no alert() */}
+                  {checkoutError && (
+                    <div className="flex items-start gap-2 text-sm text-red-400 bg-red-400/8 border border-red-400/20 rounded-lg px-3 py-2.5">
+                      <span className="mt-0.5 flex-shrink-0">⚠</span>
+                      <span>{checkoutError}</span>
+                    </div>
+                  )}
+
                   <button
                     onClick={handleCheckoutSubmit}
                     disabled={!buyerName || !buyerEmail || isLoading}
@@ -257,10 +279,7 @@ export default function Customer() {
                   >
                     {isLoading ? (
                       <span className="flex items-center gap-2">
-                        <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                        </svg>
+                        <Loader2 className="w-4 h-4 animate-spin" />
                         Procesando...
                       </span>
                     ) : (

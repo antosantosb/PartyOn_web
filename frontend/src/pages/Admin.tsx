@@ -6,10 +6,11 @@ import { Link } from 'react-router-dom';
 export default function Admin() {
   const store = useStore();
   
-  // Initialize from store — but also update when the store loads from the backend
+  // Initialize from store — updated when backend data arrives (useEffect below)
   const [eventData, setEventData] = useState(store.eventData);
   const [theme, setTheme] = useState(store.theme);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [isUploading, setIsUploading] = useState(false);
 
   // Sync local form state when the backend fetch completes 
   // (store.loading goes false = backend data has arrived)
@@ -30,6 +31,29 @@ export default function Admin() {
     } catch {
       setSaveStatus('idle');
       alert('Error al guardar. Comprueba que el backend está activo.');
+    }
+  };
+
+  // Upload a local image file to the backend and get back a public URL
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploading(true);
+    try {
+      const form = new FormData();
+      form.append('image', file);
+      const res = await fetch('http://localhost:3000/api/upload-image', { method: 'POST', body: form });
+      const data = await res.json();
+      if (data.url) {
+        handleThemeChange('backgroundImage', data.url);
+      } else {
+        alert('Error al subir la imagen: ' + (data.error || 'desconocido'));
+      }
+    } catch {
+      alert('No se pudo conectar con el servidor para subir la imagen.');
+    } finally {
+      setIsUploading(false);
+      e.target.value = ''; // reset file input
     }
   };
 
@@ -229,15 +253,34 @@ export default function Admin() {
                 Imagen de Fondo
                 <ImageIcon className="w-4 h-4 text-white/20" />
               </p>
+
+              {/* Option 1: Upload from local file */}
               <div>
-                <label className={labelClass}>URL de la imagen</label>
+                <label className={labelClass}>Subir desde el ordenador</label>
+                <label
+                  className={`flex items-center justify-center gap-3 w-full py-3 rounded-lg border-2 border-dashed cursor-pointer transition-colors ${
+                    isUploading ? 'opacity-50 cursor-wait' : 'border-white/10 hover:border-white/25 hover:bg-white/3'
+                  }`}
+                >
+                  {isUploading ? (
+                    <><Loader2 className="w-4 h-4 animate-spin text-white/40" /><span className="text-sm text-white/40">Subiendo...</span></>
+                  ) : (
+                    <><ImageIcon className="w-4 h-4 text-white/30" /><span className="text-sm text-white/40">Haz clic para seleccionar una imagen</span><span className="text-xs text-white/20">(máx. 8 MB)</span></>
+                  )}
+                  <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={isUploading} />
+                </label>
+              </div>
+
+              {/* Option 2: External URL */}
+              <div>
+                <label className={labelClass}>O pegar una URL externa</label>
                 <input
                   type="text" value={theme.backgroundImage || ''}
                   onChange={e => handleThemeChange('backgroundImage', e.target.value)}
                   className={inputClass}
                   placeholder="https://images.unsplash.com/photo-..."
                 />
-                <p className="text-xs text-white/20 mt-1.5">Usa Unsplash, tu CDN, o cualquier URL pública</p>
+                <p className="text-xs text-white/20 mt-1.5">Unsplash, tu CDN, o cualquier URL pública</p>
               </div>
 
               {/* Live preview — accurate to the customer UI */}

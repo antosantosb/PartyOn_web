@@ -1,7 +1,9 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
 import { PrismaClient } from '@prisma/client';
+import multer from 'multer';
 
 dotenv.config();
 
@@ -10,18 +12,80 @@ export const prisma = new PrismaClient();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
-app.use(express.json());
+// CORS — restrict to the frontend origin in production via env var
+// In development, FRONTEND_URL is not set so we allow localhost variants
+const allowedOrigins = process.env.FRONTEND_URL
+  ? [process.env.FRONTEND_URL]
+  : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175'];
 
-// Basic health route
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', db: 'connected' });
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (e.g. curl, mobile apps)
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error(`CORS: origin ${origin} not allowed`));
+    }
+  },
+  credentials: true
+}));
+
+app.use(express.json({ limit: '10mb' }));
+
+// Serve uploaded images as static files at /uploads
+const UPLOADS_DIR = path.join(__dirname, '..', 'uploads');
+app.use('/uploads', express.static(UPLOADS_DIR));
+
+// Multer — store files in /app/uploads/ inside the container
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    const name = `bg_${Date.now()}${ext}`;
+    cb(null, name);
+  }
+});
+const upload = multer({
+  storage,
+  limits: { fileSize: 8 * 1024 * 1024 }, // 8 MB max
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Solo se permiten imágenes'));
+    }
+  }
+});
+
+// Health check
+app.get('/health', async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ status: 'ok', db: 'connected' });
+  } catch {
+    res.status(503).json({ status: 'error', db: 'disconnected' });
+  }
+});
+
+// Image upload endpoint — returns the public URL of the uploaded file
+app.post('/api/upload-image', upload.single('image'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No se subió ningún archivo' });
+  }
+  // Return a URL the frontend can use directly as theme.backgroundImage
+  const publicUrl = `http://localhost:${PORT}/uploads/${req.file.filename}`;
+  res.json({ url: publicUrl });
 });
 
 import apiRouter from './routes/api.route';
-
-// API Routes
 app.use('/api', apiRouter);
+
+// Ensure uploads dir exists before starting
+import fs from 'fs';
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
