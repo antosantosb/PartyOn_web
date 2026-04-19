@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MapPin, ArrowRight, X, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -199,7 +199,24 @@ export default function Customer() {
               initial={{ opacity: 0, y: 60 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 60 }}
               transition={{ type: 'spring', damping: 26, stiffness: 300 }}
             >
-              <div className="relative bg-[#111] border border-white/10 rounded-t-2xl md:rounded-2xl w-full md:max-w-md p-7">
+              {/*
+               * PANEL — this is the white card that slides up.
+               *
+               * max-h-[85vh]          : cap height at 85% of the viewport.
+               *                        Leaves a visible gap above on mobile so
+               *                        the user knows the backdrop is tappable.
+               * overflow-y-auto       : when content (Stripe PaymentElement + button)
+               *                        is taller than the panel, show a scrollbar.
+               *                        Without this, the "Pagar" button is hidden
+               *                        below the fold with NO way to reach it.
+               * WebkitOverflowScrolling: enables momentum (inertia) scrolling on
+               *                        iOS Safari — without it the panel feels
+               *                        frozen and unscrollable on iPhones.
+               */}
+              <div
+                className="relative bg-[#111] border border-white/10 rounded-t-2xl md:rounded-2xl w-full md:max-w-md p-7 max-h-[85vh] overflow-y-auto"
+                style={{ WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
+              >
                 {/* Close */}
                 <button
                   onClick={() => { setShowCheckout(false); setPaymentStep('details'); }}
@@ -224,17 +241,21 @@ export default function Customer() {
                           className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3.5 text-white text-sm placeholder-white/30 focus:outline-none focus:border-white/25 transition-colors"
                         />
                         <input
-                          type="email" value={buyerEmail} onChange={e => setBuyerEmail(e.target.value)}
+                          type="email"
+                          value={buyerEmail}
+                          onChange={e => setBuyerEmail(e.target.value)}
                           placeholder="Email — aquí recibirás tu QR"
                           className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3.5 text-white text-sm placeholder-white/30 focus:outline-none focus:border-white/25 transition-colors"
                         />
                         <input
-                          type="tel" value={buyerPhone} onChange={e => setBuyerPhone(e.target.value)}
-                          placeholder="Teléfono para MB Way (opcional)"
+                          type="tel"
+                          value={buyerPhone}
+                          onChange={e => setBuyerPhone(e.target.value)}
+                          placeholder="Teléfono (opcional)"
                           className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3.5 text-white text-sm placeholder-white/30 focus:outline-none focus:border-white/25 transition-colors"
                         />
                         <button
-                          disabled={!buyerName || !buyerEmail}
+                          disabled={!buyerName || !buyerEmail || !buyerEmail.includes('@')}
                           onClick={() => setPaymentStep('payment')}
                           className="w-full mt-2 py-4 rounded-lg font-semibold text-black text-sm uppercase tracking-wider transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-110"
                           style={{ backgroundColor: theme.primaryColor }}
@@ -275,57 +296,109 @@ export default function Customer() {
         )}
       </AnimatePresence>
 
-      {/* ─── SUCCESS OVERLAY ─────────────────────────────────────────── */}
+      {/* ✅ SUCCESS OVERLAY — shown after Stripe confirms payment and our backend issues tickets */}
       <AnimatePresence>
         {purchased && (
           <>
+            {/* Dark, blurred backdrop */}
             <motion.div
-              className="fixed inset-0 z-40 bg-black/80 backdrop-blur-sm"
+              className="fixed inset-0 z-40 bg-black/85 backdrop-blur-md"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
             />
+
+            {/* Success card — spring animation for a satisfying pop-in */}
             <motion.div
               className="fixed inset-0 z-50 flex items-center justify-center p-6"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              transition={{ type: 'spring', damping: 24, stiffness: 260 }}
+              initial={{ opacity: 0, scale: 0.88, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 10 }}
+              transition={{ type: 'spring', damping: 22, stiffness: 280 }}
             >
-              {/* Success "ticket" UI */}
-              <div className="w-full max-w-sm bg-[#111] border border-white/10 rounded-2xl overflow-hidden">
-                {/* Accent top stripe */}
-                <div className="h-1.5 w-full" style={{ backgroundColor: theme.primaryColor }} />
+              <div className="w-full max-w-sm bg-[#111] border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
+
+                {/* Accent colour bar at top — uses the event's primary colour */}
+                <div className="h-1 w-full" style={{ backgroundColor: theme.primaryColor }} />
+
                 <div className="p-8 text-center">
-                  {/* Checkmark */}
-                  <div
-                    className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6"
-                    style={{ backgroundColor: `${theme.primaryColor}15`, border: `2px solid ${theme.primaryColor}` }}
+
+                  {/*
+                   * Animated checkmark ring.
+                   * The outer motion.div pops in with a spring delay so the
+                   * ring appears AFTER the card itself, creating a staged
+                   * reveal that feels celebratory rather than abrupt.
+                   */}
+                  <motion.div
+                    className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-5"
+                    style={{ backgroundColor: `${theme.primaryColor}18`, border: `2px solid ${theme.primaryColor}` }}
+                    initial={{ scale: 0.5, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ delay: 0.15, type: 'spring', damping: 18, stiffness: 300 }}
                   >
-                    <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" style={{ stroke: theme.primaryColor, strokeWidth: 2.5 }}>
+                    <svg className="w-9 h-9" fill="none" viewBox="0 0 24 24" style={{ stroke: theme.primaryColor, strokeWidth: 2.5 }}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
-                  </div>
+                  </motion.div>
 
-                  <h2 className="text-2xl font-bold mb-1">¡Listo, {buyerName.split(' ')[0]}!</h2>
-                  <p className="text-white/40 text-sm mb-7">Tu entrada está en camino</p>
+                  {/* Main headline text block — fades in slightly after the ring */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.25 }}
+                  >
+                    <p className="text-xs font-mono uppercase tracking-[0.25em] mb-2" style={{ color: theme.primaryColor }}>
+                      Pago confirmado
+                    </p>
+                    <h2 className="text-2xl font-bold mb-1">
+                      ¡Gracias por tu compra, {buyerName.split(' ')[0]}!
+                    </h2>
+                    <p className="text-white/50 text-sm mb-7">
+                      ¡Te esperamos! 🎉 Tu entrada está en camino
+                    </p>
+                  </motion.div>
 
-                  {/* Perforated email box */}
-                  <div className="border border-dashed border-white/15 rounded-lg p-4 mb-7">
-                    <p className="text-xs font-mono text-white/30 uppercase tracking-wider mb-1.5">Enviado a</p>
-                    <p className="font-semibold text-sm truncate">{buyerEmail}</p>
-                    <div className="mt-3 pt-3 border-t border-white/8 flex justify-between text-xs text-white/30 font-mono">
-                      <span>{selectedTicket.name} × {tickets}</span>
-                      <span>{(tickets * selectedTicket.price).toFixed(0)}€</span>
+                  {/*
+                   * Perforated ticket summary box.
+                   * The dashed border mimics a physical ticket tear line,
+                   * reinforcing the "you just bought a ticket" metaphor.
+                   */}
+                  <motion.div
+                    className="border border-dashed border-white/15 rounded-xl p-4 mb-7 text-left"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.35 }}
+                  >
+                    <p className="text-[10px] font-mono text-white/30 uppercase tracking-wider mb-2">Enviado a</p>
+                    <p className="font-semibold text-sm truncate mb-3">{buyerEmail}</p>
+
+                    {/* Itemised breakdown */}
+                    <div className="border-t border-dashed border-white/10 pt-3 space-y-1.5">
+                      <div className="flex justify-between text-xs font-mono text-white/40">
+                        <span>Entrada</span>
+                        <span>{selectedTicket.name}</span>
+                      </div>
+                      <div className="flex justify-between text-xs font-mono text-white/40">
+                        <span>Cantidad</span>
+                        <span>{tickets}</span>
+                      </div>
+                      <div className="flex justify-between text-xs font-mono font-semibold text-white/70 pt-1 border-t border-white/8">
+                        <span>Total</span>
+                        <span>{(tickets * selectedTicket.price).toFixed(0)}€</span>
+                      </div>
                     </div>
-                  </div>
+                  </motion.div>
 
-                  <button
+                  {/* Secondary action — fades in last so it doesn't compete with headline */}
+                  <motion.button
                     onClick={resetState}
-                    className="text-xs font-mono uppercase tracking-widest text-white/25 hover:text-white/60 transition-colors"
+                    className="text-xs font-mono uppercase tracking-widest text-white/25 hover:text-white/70 transition-colors"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.5 }}
                   >
                     + Comprar otra entrada
-                  </button>
+                  </motion.button>
                 </div>
               </div>
             </motion.div>

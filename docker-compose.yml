@@ -24,7 +24,14 @@ services:
     environment:
       - DATABASE_URL=postgresql://admin:adminpassword@db:5432/partyon?schema=public
       - PORT=3000
-      # Set this to your real domain before going live:
+      # ── Stripe ──────────────────────────────────────────────────────────────
+      # Docker Compose reads ${STRIPE_SECRET_KEY} from the host environment OR
+      # from a .env file placed next to docker-compose.yml (root of the project).
+      # NEVER hardcode the real secret key here — .env is gitignored.
+      # Test keys start with sk_test_  |  Live keys start with sk_live_
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      # ── Frontend origin (CORS) ───────────────────────────────────────────────
+      # Uncomment and set to your production domain before going live:
       # - FRONTEND_URL=https://yourdomain.com
     volumes:
       - uploads_data:/app/uploads
