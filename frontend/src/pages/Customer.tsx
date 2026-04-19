@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MapPin, ArrowRight, X, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -8,9 +8,8 @@ import { StripeCheckout } from '../components/StripeCheckout';
 export default function Customer() {
   const { eventData, theme, loading } = useStore();
   const [tickets, setTickets] = useState(1);
-  const [selectedTicketId, setSelectedTicketId] = useState(eventData.ticketTypes[0]?.id || '');
+  const [selectedTicketId, setSelectedTicketId] = useState('');
   const [showCheckout, setShowCheckout] = useState(false);
-  // 'details' = personal info form, 'payment' = Stripe card form
   const [paymentStep, setPaymentStep] = useState<'details' | 'payment'>('details');
   const [purchased, setPurchased] = useState(false);
 
@@ -21,6 +20,16 @@ export default function Customer() {
   const selectedTicket = eventData?.ticketTypes.find(t => t.id === selectedTicketId) || eventData?.ticketTypes[0];
   const isSoldOut = selectedTicket?.stock === 0;
   const lineup = (eventData?.lineup || '').split(',').map((s: string) => s.trim()).filter(Boolean);
+
+  // Auto-select first ticket type when data loads OR when selection is invalid
+  useEffect(() => {
+    if (eventData.ticketTypes.length > 0) {
+      const exists = eventData.ticketTypes.find(t => t.id === selectedTicketId);
+      if (!selectedTicketId || !exists) {
+        setSelectedTicketId(eventData.ticketTypes[0].id);
+      }
+    }
+  }, [eventData.ticketTypes, selectedTicketId]);
 
   const resetState = () => {
     setPurchased(false);
@@ -46,9 +55,6 @@ export default function Customer() {
       <p className="text-white/30 text-sm font-mono">Cargando entradas...</p>
     </div>
   );
-
-  // Parse date for the ticket stub display
-  const dateParts = eventData.date.toUpperCase().split(' ');
 
   return (
     <div
@@ -341,7 +347,6 @@ interface TicketStubProps {
   setSelectedTicketId: (id: string) => void;
   selectedTicket: any;
   isSoldOut: boolean;
-  dateParts: string[];
   onContinue: () => void;
 }
 
@@ -416,7 +421,7 @@ function TicketStub({ eventData, theme, tickets, setTickets, selectedTicketId, s
                 )}
               </div>
               <span className="text-sm font-bold" style={{ color: selectedTicketId === t.id ? theme.primaryColor : 'rgba(255,255,255,0.5)' }}>
-                {t.price}€
+                {Number(t.price) % 1 === 0 ? `${t.price}€` : `${Number(t.price).toFixed(2)}€`}
               </span>
             </button>
           ))}

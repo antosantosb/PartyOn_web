@@ -73,7 +73,15 @@ export default function Admin() {
         const data = await res.json();
         if (!data.success) throw new Error(data.error || 'Error en ticket types');
         // Update local draft with server-assigned IDs for new types
-        setTicketTypes(data.ticketTypes.map((tt: any) => ({ ...tt, _key: nextKey() })));
+        const updatedTickets = data.ticketTypes.map((tt: any) => ({ ...tt, _key: nextKey() }));
+        setTicketTypes(updatedTickets);
+
+        // Crucial: Update the store so Customer.tsx sees the new tickets immediately
+        // We strip the local _key before pushing to store
+        await store.setEventData({
+          ...draft.event,
+          ticketTypes: data.ticketTypes
+        });
       }
 
       setSaveStatus('saved');

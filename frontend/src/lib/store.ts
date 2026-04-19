@@ -23,10 +23,10 @@ export const defaultTheme = {
 
 const API_BASE = 'http://localhost:3000/api';
 
-// Fields we cache in localStorage (no ticket/financial data)
+// Fields we cache in localStorage
 const CACHE_KEYS = [
   'id', 'partyName', 'tagline', 'date', 'location',
-  'artistInfo', 'lineup', 'logoText1', 'logoText2'
+  'artistInfo', 'lineup', 'logoText1', 'logoText2', 'ticketTypes'
 ] as const;
 
 function pickCacheFields(data: any) {
