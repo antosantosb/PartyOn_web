@@ -15,7 +15,6 @@ export default function Customer() {
 
   const [buyerName, setBuyerName] = useState('');
   const [buyerEmail, setBuyerEmail] = useState('');
-  const [buyerPhone, setBuyerPhone] = useState('');
 
   const selectedTicket = eventData?.ticketTypes.find(t => t.id === selectedTicketId) || eventData?.ticketTypes[0];
   const isSoldOut = selectedTicket?.stock === 0;
@@ -116,7 +115,7 @@ export default function Customer() {
           >
             {/* Category label */}
             <p className="text-xs font-mono uppercase tracking-[0.3em] mb-5" style={{ color: theme.primaryColor }}>
-              Próximo Evento · Música Latina
+              Próximo Evento · {eventData.date}
             </p>
 
             {/* Event name — huge, tight, white only */}
@@ -247,13 +246,6 @@ export default function Customer() {
                           placeholder="Email — aquí recibirás tu QR"
                           className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3.5 text-white text-sm placeholder-white/30 focus:outline-none focus:border-white/25 transition-colors"
                         />
-                        <input
-                          type="tel"
-                          value={buyerPhone}
-                          onChange={e => setBuyerPhone(e.target.value)}
-                          placeholder="Teléfono (opcional)"
-                          className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3.5 text-white text-sm placeholder-white/30 focus:outline-none focus:border-white/25 transition-colors"
-                        />
                         <button
                           disabled={!buyerName || !buyerEmail || !buyerEmail.includes('@')}
                           onClick={() => setPaymentStep('payment')}
@@ -280,7 +272,6 @@ export default function Customer() {
                         theme={theme}
                         buyerName={buyerName}
                         buyerEmail={buyerEmail}
-                        buyerPhone={buyerPhone}
                         ticketId={selectedTicketId}
                         quantity={tickets}
                         selectedTicket={selectedTicket}

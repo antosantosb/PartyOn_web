@@ -232,7 +232,6 @@ interface StripeCheckoutProps {
   theme: any;
   buyerName: string;
   buyerEmail: string;
-  buyerPhone: string;
   ticketId: string;
   quantity: number;
   selectedTicket: any;
