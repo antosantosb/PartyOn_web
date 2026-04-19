@@ -14,8 +14,7 @@ export const getStoreData = async (req: Request, res: Response) => {
           name: "EL PERREO INTENSO",
           tagline: "La noche que no olvidarás",
           date: "SÁBADO 15 NOVIEMBRE",
-          location: "CLUB NOSTALGIA, MADRID",
-          artistInfo: "DJ ALVARO + GUEST STARS",
+          location: "BRAGA",
           lineup: "DJ Álvaro, MC Regueton, La Reina Latina",
           logoText1: "PARTY",
           logoText2: "ON",
@@ -64,6 +63,8 @@ export const updateStoreData = async (req: Request, res: Response) => {
         lineup: eventData.lineup ?? null,
         logoText1: eventData.logoText1,
         logoText2: eventData.logoText2,
+        emailSubject: eventData.emailSubject,
+        emailBody: eventData.emailBody,
       }
     });
 

@@ -30,6 +30,7 @@ services:
       # NEVER hardcode the real secret key here — .env is gitignored.
       # Test keys start with sk_test_  |  Live keys start with sk_live_
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - RESEND_API_KEY=${RESEND_API_KEY}
       # ── Frontend origin (CORS) ───────────────────────────────────────────────
       # Uncomment and set to your production domain before going live:
       # - FRONTEND_URL=https://yourdomain.com

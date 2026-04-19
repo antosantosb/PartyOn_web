@@ -3,14 +3,16 @@ import { useState, useEffect, useRef } from 'react';
 // UI-only fallback (no ticketTypes — always fetched live from the API)
 export const defaultEventData = {
   id: '',
-  partyName: "EL PERREO INTENSO",
-  tagline: "La noche que no olvidarás",
+  partyName: "NOSTALGIA",
+  tagline: "",
   date: "SÁBADO 15 NOVIEMBRE",
-  location: "CLUB NOSTALGIA, MADRID",
-  artistInfo: "DJ ALVARO + GUEST STARS",
-  lineup: "DJ Álvaro, MC Regueton, La Reina Latina",
+  location: "BRAGA",
+  artistInfo: "DJ SANTOS",
+  lineup: "",
   logoText1: "PARTY",
   logoText2: "ON",
+  emailSubject: "Tu entrada para PartyOn",
+  emailBody: "Gracias por tu compra. Te adjuntamos las entradas en este correo.",
   ticketTypes: [] as { id: string; name: string; price: number; stock: number }[]
 };
 
@@ -23,10 +25,10 @@ export const defaultTheme = {
 
 const API_BASE = 'http://localhost:3000/api';
 
-// Fields we cache in localStorage
+// Fields we cache in localStorage (no ticket/financial data)
 const CACHE_KEYS = [
   'id', 'partyName', 'tagline', 'date', 'location',
-  'artistInfo', 'lineup', 'logoText1', 'logoText2', 'ticketTypes'
+  'artistInfo', 'lineup', 'logoText1', 'logoText2', 'emailSubject', 'emailBody', 'ticketTypes'
 ] as const;
 
 function pickCacheFields(data: any) {
@@ -106,6 +108,8 @@ export function useStore() {
           lineup: newData.lineup ?? null,
           logoText1: newData.logoText1,
           logoText2: newData.logoText2,
+          emailSubject: newData.emailSubject,
+          emailBody: newData.emailBody,
         },
         theme: themeRef.current
       })
@@ -131,6 +135,8 @@ export function useStore() {
           lineup: eventRef.current.lineup ?? null,
           logoText1: eventRef.current.logoText1,
           logoText2: eventRef.current.logoText2,
+          emailSubject: eventRef.current.emailSubject,
+          emailBody: eventRef.current.emailBody,
         },
         theme: newTheme
       })

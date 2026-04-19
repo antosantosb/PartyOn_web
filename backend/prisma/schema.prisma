@@ -14,13 +14,15 @@ model Event {
   name        String   @default("PARTY ON EVENT")
   tagline     String?  // Subtítulo bajo el nombre del evento
   date        String   @default("SÁBADO 15 NOVIEMBRE")
-  location    String   @default("CLUB NOSTALGIA, MADRID")
-  artistInfo  String   @default("DJ ALVARO + GUEST STARS")
+  location    String   @default("BRAGA")
+  artistInfo  String   @default("DJ SANTOS")
   lineup      String?  // Artistas separados por comas
 
   // Customization
-  logoText1   String   @default("PARTY")
-  logoText2   String   @default("ON")
+  logoText1    String   @default("PARTY")
+  logoText2    String   @default("ON")
+  emailSubject String   @default("Entrada para PartyOn")
+  emailBody    String   @default("Gracias por tu compra. Te adjuntamos tu entrada en este correo.") @db.Text
 
   ticketTypes TicketType[]
   theme       Theme?

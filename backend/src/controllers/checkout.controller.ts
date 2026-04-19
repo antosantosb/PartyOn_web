@@ -34,6 +34,9 @@ import { prisma } from '../index';
  *   3. Prevents multiple SDK instances from competing for HTTP connections.
  */
 import { stripe } from '../services/stripe.service';
+import { generateTicketQR } from '../services/qr.service';
+import { generateTicketPDF } from '../services/pdf.service';
+import { sendTicketEmail } from '../services/email.service';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // STEP 1: Create a PaymentIntent and return its clientSecret to the frontend
@@ -189,14 +192,87 @@ export const processCheckout = async (req: Request, res: Response) => {
 
       return created;
     });
-
-    // TODO Phase 2: Send one email per ticket with a unique QR code via Resend
-
     res.json({
       success: true,
       message: 'Entradas generadas con éxito',
       tickets,
     });
+
+    /**
+     * ─── TICKET DELIVERY SYSTEM (ASYNCHRONOUS) ──────────────────────────────
+     * We trigger this AFTER sending the success response to the frontend.
+     * This ensures the user sees the "Success" screen instantly, while the
+     * "heavy" PDF generation and Email sending happen in the background.
+     * 
+     * We also wrap this in a try/catch so if the email service is down,
+     * it doesn't crash the request logic.
+     */
+    (async () => {
+      console.log(`[Delivery] Starting background process for ${tickets.length} ticket(s) to ${buyerEmail}...`);
+      try {
+        // 1. Fetch full Event and Theme context for branding
+        const ticketTypeInfo = await prisma.ticketType.findUnique({
+          where: { id: ticketId },
+          include: {
+            event: {
+              include: { theme: true }
+            }
+          }
+        });
+
+        if (!ticketTypeInfo || !ticketTypeInfo.event) {
+          console.error('[Delivery] Aborting: Could not find ticket type or event data for ID:', ticketId);
+          return;
+        }
+
+        const { event } = ticketTypeInfo;
+        const theme = event.theme || { primaryColor: '#00ffcc', backgroundImage: null };
+        console.log(`[Delivery] Branding found - Event: ${event.name}, PrimaryColor: ${theme.primaryColor}`);
+
+        // 2. Prepare collection for the single email
+        const collectedTickets: { pdfBuffer: Buffer; ticketId: string }[] = [];
+        console.log(`[Delivery] Processing ${tickets.length} ticket(s)...`);
+
+        for (const ticket of tickets) {
+          try {
+            console.log(`[Delivery] Generating Ticket: ${ticket.id}`);
+
+            // STEP A: Generate Branded QR Code
+            const qrBase64 = await generateTicketQR(ticket.id, theme.primaryColor);
+
+            // STEP B: Generate Branded PDF Ticket Card
+            const pdfBuffer = await generateTicketPDF({
+              event,
+              theme,
+              ticket: { ...ticket, ticketType: ticketTypeInfo },
+              qrCodeBase64: qrBase64
+            });
+
+            collectedTickets.push({ pdfBuffer, ticketId: ticket.id });
+          } catch (deliveryError) {
+            console.error(`[Delivery] ❌ FAILED to generate PDF for ${ticket.id}:`, deliveryError);
+            // We continue the loop so other tickets in the same order still get generated
+          }
+        }
+
+        // 3. Dispatch the single consolidated email
+        if (collectedTickets.length > 0) {
+          console.log(`[Delivery] Dispatching single email with ${collectedTickets.length} ticket(s) to ${buyerEmail}...`);
+          const result = await sendTicketEmail({
+            to: buyerEmail,
+            subject: event.emailSubject,
+            bodyMarkdown: event.emailBody,
+            eventName: event.name,
+            tickets: collectedTickets
+          });
+          console.log(`[Delivery] ✅ SUCCESS: Consolidated email sent. ID: ${result.messageId}`);
+        } else {
+          console.warn('[Delivery] No tickets were generated, skip email.');
+        }
+      } catch (systemError) {
+        console.error('[Delivery] Fatal system error in background task:', systemError);
+      }
+    })();
 
   } catch (error: any) {
     // Surface domain errors (stock, not found) as 400 instead of 500

@@ -1,29 +1,28 @@
 import QRCode from 'qrcode';
-import sharp from 'sharp';
-import fs from 'fs';
-import path from 'path';
 
-export const generateTicketImage = async (ticketId: string, templatePath?: string): Promise<Buffer> => {
-  // 1. Generate QR Code
-  // In a real app, this URL should point to your hosted frontend validation page
-  const validationUrl = `https://your-domain.com/validate?id=${ticketId}`;
-  
-  const qrBuffer = await QRCode.toBuffer(validationUrl, {
-    color: { dark: '#000000', light: '#FFFFFF' },
-    width: 300,
-    margin: 2
+/**
+ * generateTicketQR
+ * ----------------
+ * Generates a high-resolution QR code for the ticket as a Base64 Data URL.
+ * matches the theme's primaryColor for a branded look.
+ *
+ * @param ticketId - The unique ID of the ticket for validation
+ * @param primaryColor - The Hex color code from the theme (e.g. #00ffcc)
+ * @returns Promise<string> - A Base64 string (data:image/png;base64,...)
+ */
+export const generateTicketQR = async (ticketId: string, primaryColor: string): Promise<string> => {
+  // 1. Define the validation URL (Phase 3 Scanner will use this)
+  const validationUrl = `https://partyon.app/validate/${ticketId}`;
+
+  // 2. Generate the QR as a Base64 string
+  // We use toDataURL instead of toBuffer so it can be directly embedded in PDF/HTML
+  return await QRCode.toDataURL(validationUrl, {
+    color: {
+      dark: primaryColor, // The QR dots will match the brand color
+      light: '#FFFFFF',   // Keeping light background for high contrast
+    },
+    width: 600,          // High res for printing
+    margin: 1,
+    errorCorrectionLevel: 'H' // High error correction so it works even if slightly damaged
   });
-
-  // 2. Load Base Template (Use a default if none provided by Theme)
-  const defaultTemplate = path.join(process.cwd(), '..', 'base.jpg');
-  const templateToUse = templatePath && fs.existsSync(templatePath) ? templatePath : defaultTemplate;
-
-  // 3. Composite Image
-  // Adjust top/left to put the QR code where it should go on the base image
-  return await sharp(templateToUse)
-    .composite([
-      { input: qrBuffer, top: 130, left: 450 } 
-    ])
-    .toFormat('png')
-    .toBuffer();
 };

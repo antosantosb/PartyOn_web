@@ -57,6 +57,11 @@ const upload = multer({
   }
 });
 
+// Root route
+app.get('/', (_req, res) => {
+  res.send('<h1>PartyOn Backend is Live</h1><p>API endpoints are available at /api</p>');
+});
+
 // Health check
 app.get('/health', async (_req, res) => {
   try {

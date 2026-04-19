@@ -37,7 +37,6 @@ export default function Customer() {
     setTickets(1);
     setBuyerName('');
     setBuyerEmail('');
-    setBuyerPhone('');
   };
 
   if (loading) return (

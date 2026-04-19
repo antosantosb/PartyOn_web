@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useStore } from '../lib/store';
 import {
   Settings, Save, Image as ImageIcon, ArrowLeft,
-  CheckCircle2, Loader2, Plus, Trash2, AlertCircle
+  CheckCircle2, Loader2, Plus, Trash2, AlertCircle, Mail
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -243,6 +243,34 @@ export default function Admin() {
                     ))}
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* Email Personalization */}
+            <div className="bg-[#161616] border border-white/8 rounded-xl p-6 space-y-4">
+              <p className="text-sm font-semibold text-white/60 pb-2 border-b border-white/6 flex items-center justify-between">
+                Personalización de Email <Mail className="w-4 h-4 text-white/20" />
+              </p>
+              <div>
+                <label className={labelClass}>Asunto del Correo</label>
+                <input 
+                  type="text" 
+                  value={d.emailSubject || ''} 
+                  onChange={e => ev('emailSubject', e.target.value)} 
+                  className={inputClass} 
+                  placeholder="Tu entrada para..." 
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Mensaje del Correo <span className="normal-case text-white/20">(Markdown compatible)</span></label>
+                <textarea 
+                  rows={4}
+                  value={d.emailBody || ''} 
+                  onChange={e => ev('emailBody', e.target.value)} 
+                  className={`${inputClass} resize-none`}
+                  placeholder="Gracias por tu compra..."
+                />
+                <p className="text-[10px] text-white/20 mt-2">Este mensaje aparecerá arriba de los adjuntos PDF.</p>
               </div>
             </div>
 
