@@ -246,34 +246,6 @@ export default function Admin() {
               </div>
             </div>
 
-            {/* Email Personalization */}
-            <div className="bg-[#161616] border border-white/8 rounded-xl p-6 space-y-4">
-              <p className="text-sm font-semibold text-white/60 pb-2 border-b border-white/6 flex items-center justify-between">
-                Personalización de Email <Mail className="w-4 h-4 text-white/20" />
-              </p>
-              <div>
-                <label className={labelClass}>Asunto del Correo</label>
-                <input 
-                  type="text" 
-                  value={d.emailSubject || ''} 
-                  onChange={e => ev('emailSubject', e.target.value)} 
-                  className={inputClass} 
-                  placeholder="Tu entrada para..." 
-                />
-              </div>
-              <div>
-                <label className={labelClass}>Mensaje del Correo <span className="normal-case text-white/20">(Markdown compatible)</span></label>
-                <textarea 
-                  rows={4}
-                  value={d.emailBody || ''} 
-                  onChange={e => ev('emailBody', e.target.value)} 
-                  className={`${inputClass} resize-none`}
-                  placeholder="Gracias por tu compra..."
-                />
-                <p className="text-[10px] text-white/20 mt-2">Este mensaje aparecerá arriba de los adjuntos PDF.</p>
-              </div>
-            </div>
-
             {/* Colors */}
             <div className="bg-[#161616] border border-white/8 rounded-xl p-6 space-y-5">
               <p className="text-sm font-semibold text-white/60 pb-2 border-b border-white/6">Colores</p>
@@ -416,6 +388,8 @@ export default function Admin() {
                       </div>
                     </div>
 
+
+
                     {/* Summary chips */}
                     <div className="flex gap-2 flex-wrap">
                       <span className="text-[11px] font-mono px-2 py-0.5 rounded"
@@ -438,6 +412,34 @@ export default function Admin() {
               <div className="pt-2 border-t border-white/6 text-xs text-white/20 space-y-1">
                 <p>• El botón <span className="font-mono">⊝</span> solo elimina tipos sin entradas vendidas.</p>
                 <p>• Reducir el límite por debajo de las ventas actuales no está permitido.</p>
+              </div>
+            </div>
+
+            {/* Email Personalization */}
+            <div className="bg-[#161616] border border-white/8 rounded-xl p-6 space-y-4">
+              <p className="text-sm font-semibold text-white/60 pb-2 border-b border-white/6 flex items-center justify-between">
+                Personalización de Email <Mail className="w-4 h-4 text-white/20" />
+              </p>
+              <div>
+                <label className={labelClass}>Asunto del Correo</label>
+                <input
+                  type="text"
+                  value={d.emailSubject || ''}
+                  onChange={e => ev('emailSubject', e.target.value)}
+                  className={inputClass}
+                  placeholder="Tu entrada para..."
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Mensaje del Correo <span className="normal-case text-white/20">(Markdown compatible)</span></label>
+                <textarea
+                  rows={4}
+                  value={d.emailBody || ''}
+                  onChange={e => ev('emailBody', e.target.value)}
+                  className={`${inputClass} resize-none`}
+                  placeholder="Gracias por tu compra..."
+                />
+                <p className="text-[10px] text-white/20 mt-2">Este mensaje aparecerá arriba de los adjuntos PDF.</p>
               </div>
             </div>
 
