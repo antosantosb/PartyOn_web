@@ -242,9 +242,21 @@ export const processCheckout = async (req: Request, res: Response) => {
 
             // STEP B: Generate Branded PDF Ticket Card
             const pdfBuffer = await generateTicketPDF({
-              event,
-              theme,
-              ticket: { ...ticket, ticketType: ticketTypeInfo },
+              event: {
+                name: event.name,
+                tagline: event.tagline ?? undefined,
+                date: event.date,
+                location: event.location,
+              },
+              theme: {
+                primaryColor: theme.primaryColor ?? undefined,
+                backgroundImage: theme.backgroundImage ?? undefined,
+              },
+              ticket: { 
+                id: ticket.id,
+                name: ticket.name,
+                ticketType: { name: ticketTypeInfo.name },
+              },
               qrCodeBase64: qrBase64
             });
 

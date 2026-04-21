@@ -1,5 +1,5 @@
 import { Resend } from 'resend';
-import { marked } from 'marked';
+// import { marked } from 'marked'; // ESM only, using dynamic import instead
 
 /**
  * email.service.ts
@@ -39,6 +39,7 @@ export const sendTicketEmail = async (params: SendTicketEmailParams) => {
 
   try {
     // 1. Parse Markdown to HTML for the email content
+    const { marked } = await import('marked');
     const messageHtml = await marked.parse(bodyMarkdown.trim());
     const isMultiple = tickets.length > 1;
 

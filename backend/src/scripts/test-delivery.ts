@@ -43,9 +43,21 @@ async function testDelivery() {
     // Step B: PDF
     console.log('  -> Generating PDF Card...');
     const pdfBuffer = await generateTicketPDF({
-      event,
-      theme,
-      ticket: mockTicket,
+      event: {
+        name: event.name,
+        tagline: event.tagline ?? undefined,
+        date: event.date,
+        location: event.location,
+      },
+      theme: {
+        primaryColor: theme.primaryColor ?? undefined,
+        backgroundImage: (theme as any).backgroundImage ?? undefined,
+      },
+      ticket: {
+        id: mockTicket.id,
+        name: mockTicket.name,
+        ticketType: { name: ticketType.name },
+      },
       qrCodeBase64: qrBase64
     });
 
