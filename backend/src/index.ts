@@ -13,15 +13,20 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // CORS — restrict to the frontend origin in production via env var
-// In development, FRONTEND_URL is not set so we allow localhost variants
-const allowedOrigins = process.env.FRONTEND_URL
-  ? [process.env.FRONTEND_URL]
-  : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175'];
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:5175',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:5174',
+  'http://127.0.0.1:5175',
+].filter(Boolean) as string[];
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (e.g. curl, mobile apps)
-    if (!origin || allowedOrigins.includes(origin)) {
+    // In development (no FRONTEND_URL), we can be more permissive
+    if (!origin || !process.env.FRONTEND_URL || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
       callback(new Error(`CORS: origin ${origin} not allowed`));

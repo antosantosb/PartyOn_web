@@ -1,5 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
-import { useStore } from '../lib/store';
+import { useState, useEffect } from 'react';
 import {
   Settings, Save, Image as ImageIcon, ArrowLeft,
   CheckCircle2, Loader2, Plus, Trash2, AlertCircle, Mail
@@ -20,27 +19,81 @@ let keyCounter = 0;
 const nextKey = () => ++keyCounter;
 
 export default function Admin() {
-  const store = useStore();
-
-  const [draft, setDraft] = useState({
-    event: store.eventData,
-    theme: store.theme
-  });
+  const [allEvents, setAllEvents] = useState<any[]>([]);
+  const [selectedEventId, setSelectedEventId] = useState<string>('');
+  
+  const [draft, setDraft] = useState<any>({ event: {}, theme: {} });
   const [ticketTypes, setTicketTypes] = useState<TicketTypeDraft[]>([]);
   const [ticketError, setTicketError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const initialized = useRef(false);
-
-  // Populate draft exactly once when backend data arrives
-  useEffect(() => {
-    if (!store.loading && !initialized.current) {
-      initialized.current = true;
-      setDraft({ event: store.eventData, theme: store.theme });
-      setTicketTypes(
-        store.eventData.ticketTypes.map(tt => ({ ...tt, _key: nextKey() }))
-      );
+  const fetchEvents = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/admin/events`);
+      const data = await res.json();
+      if (data.events && data.events.length > 0) {
+        setAllEvents(data.events);
+        
+        // Ensure we maintain selection if reloading
+        const evtToSelect = selectedEventId 
+          ? (data.events.find((e: any) => e.id === selectedEventId) || data.events[0])
+          : data.events[0];
+          
+        selectEvent(evtToSelect);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
     }
-  }, [store.loading, store.eventData, store.theme]);
+  };
+
+  useEffect(() => { fetchEvents(); }, []);
+
+  const selectEvent = (evt: any) => {
+    setSelectedEventId(evt.id);
+    setDraft({ event: { ...evt, partyName: evt.name }, theme: evt.theme || { primaryColor: '#00ffcc', secondaryColor: '#ff007f' } });
+    setTicketTypes(evt.ticketTypes?.map((tt: any) => ({ ...tt, _key: nextKey() })) || []);
+  };
+
+  const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const evt = allEvents.find(x => x.id === e.target.value);
+    if (evt) selectEvent(evt);
+  };
+
+  const createNewEvent = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/admin/events`, { method: 'POST' });
+      const data = await res.json();
+      if (data.event) {
+        await fetchEvents();
+        selectEvent(data.event);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteEvent = async () => {
+    if (!draft.event?.id) return;
+    if (!window.confirm("¿Estás seguro de que quieres eliminar este evento? Esta acción no se puede deshacer.")) return;
+    
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/admin/events/${draft.event.id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        await fetchEvents();
+      } else {
+        alert(data.error || 'Error al eliminar el evento');
+        setLoading(false);
+      }
+    } catch (e) {
+      alert('Error de conexión al eliminar');
+      setLoading(false);
+    }
+  };
 
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [isUploading, setIsUploading] = useState(false);
@@ -57,8 +110,11 @@ export default function Admin() {
 
     setSaveStatus('saving');
     try {
-      await store.setEventData(draft.event);
-      await store.setTheme(draft.theme);
+      await fetch(`${API_BASE}/store-data`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventData: draft.event, theme: draft.theme })
+      });
 
       // Save ticket types separately (upsert)
       if (draft.event.id) {
@@ -72,16 +128,8 @@ export default function Admin() {
         });
         const data = await res.json();
         if (!data.success) throw new Error(data.error || 'Error en ticket types');
-        // Update local draft with server-assigned IDs for new types
-        const updatedTickets = data.ticketTypes.map((tt: any) => ({ ...tt, _key: nextKey() }));
-        setTicketTypes(updatedTickets);
-
-        // Crucial: Update the store so Customer.tsx sees the new tickets immediately
-        // We strip the local _key before pushing to store
-        await store.setEventData({
-          ...draft.event,
-          ticketTypes: data.ticketTypes
-        });
+        
+        await fetchEvents(); // Refresh data entirely
       }
 
       setSaveStatus('saved');
@@ -112,7 +160,7 @@ export default function Admin() {
       const res = await fetch(`${API_BASE}/upload-image`, { method: 'POST', body: form });
       const data = await res.json();
       if (data.url) {
-        setDraft(d => ({ ...d, theme: { ...d.theme, backgroundImage: data.url } }));
+        setDraft((d: any) => ({ ...d, theme: { ...d.theme, backgroundImage: data.url } }));
       } else {
         alert('Error al subir la imagen: ' + (data.error || 'desconocido'));
       }
@@ -125,10 +173,10 @@ export default function Admin() {
   };
 
   const ev = (key: string, value: string) =>
-    setDraft(d => ({ ...d, event: { ...d.event, [key]: value } }));
+    setDraft((d: any) => ({ ...d, event: { ...d.event, [key]: value } }));
 
   const th = (key: string, value: string) =>
-    setDraft(d => ({ ...d, theme: { ...d.theme, [key]: value } }));
+    setDraft((d: any) => ({ ...d, theme: { ...d.theme, [key]: value } }));
 
   const inputClass = "w-full bg-[#1a1a1a] border border-white/8 rounded-lg p-3 text-white text-sm focus:outline-none focus:border-white/25 transition-colors placeholder-white/20";
   const labelClass = "block text-xs font-mono text-white/40 uppercase tracking-wider mb-2";
@@ -148,8 +196,22 @@ export default function Admin() {
             </Link>
             <div className="w-px h-4 bg-white/10" />
             <div className="flex items-center gap-2">
-              <Settings className="w-4 h-4" style={{ color: t.primaryColor }} />
-              <span className="font-semibold text-sm">Backoffice</span>
+              <Settings className="w-4 h-4" style={{ color: t?.primaryColor || '#00ffcc' }} />
+              <select 
+                value={selectedEventId} 
+                onChange={handleSelectChange}
+                className="bg-transparent border border-white/10 rounded px-2 py-1 text-sm font-semibold focus:outline-none focus:bg-black w-48 truncate"
+              >
+                {allEvents.map(e => <option key={e.id} value={e.id} className="bg-black">{e.name} ({e.status})</option>)}
+              </select>
+              <button onClick={createNewEvent} className="ml-2 text-xs border border-white/20 px-2 py-1 rounded hover:bg-white/10 transition-colors flex items-center gap-1">
+                <Plus className="w-3 h-3" /> Nuevo
+              </button>
+              {draft.event?.status === 'DRAFT' && (
+                <button onClick={handleDeleteEvent} className="ml-2 text-xs border border-red-500/50 text-red-400 px-2 py-1 rounded hover:bg-red-500/10 transition-colors flex items-center gap-1" title="Eliminar Borrador">
+                  <Trash2 className="w-3 h-3" /> Eliminar
+                </button>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -173,9 +235,9 @@ export default function Admin() {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 py-10">
-        {store.loading && (
+        {loading && (
           <div className="flex items-center gap-2 text-white/30 text-sm mb-8">
-            <Loader2 className="w-4 h-4 animate-spin" /> Cargando datos del evento...
+            <Loader2 className="w-4 h-4 animate-spin" /> Cargando eventos...
           </div>
         )}
 
@@ -216,9 +278,24 @@ export default function Admin() {
                 <label className={labelClass}>Nombre de la Fiesta</label>
                 <input type="text" value={d.partyName || ''} onChange={e => ev('partyName', e.target.value)} className={inputClass} placeholder="EL PERREO INTENSO" />
               </div>
-              <div>
-                <label className={labelClass}>Tagline <span className="normal-case text-white/20">(subtítulo)</span></label>
-                <input type="text" value={d.tagline || ''} onChange={e => ev('tagline', e.target.value)} className={inputClass} placeholder="La noche que no olvidarás" />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>Estado</label>
+                  <select 
+                    value={d.status || 'DRAFT'} 
+                    onChange={e => ev('status', e.target.value)} 
+                    className={inputClass}
+                  >
+                    <option value="DRAFT">Borrador (Oculto)</option>
+                    <option value="ACTIVE">Activo (Público)</option>
+                    <option value="COMPLETED">Completado</option>
+                    <option value="ARCHIVED">Archivado</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>Tagline <span className="normal-case text-white/20">(subtítulo)</span></label>
+                  <input type="text" value={d.tagline || ''} onChange={e => ev('tagline', e.target.value)} className={inputClass} placeholder="La noche que no olvidarás" />
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

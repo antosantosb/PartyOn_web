@@ -8,13 +8,18 @@ import { Resend } from 'resend';
  * Supports Markdown in the message body and PDF attachments.
  */
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+let resendInstance: Resend | null = null;
 
-if (!process.env.RESEND_API_KEY) {
-  console.error('[Email Service] ❌ MISSING API KEY: Resend will not be able to send emails. Ensure RESEND_API_KEY is in your .env file.');
-} else {
-  console.log('[Email Service] ✅ API Key detected (Suffix: ...' + process.env.RESEND_API_KEY.slice(-4) + ')');
-}
+const getResend = () => {
+  if (!resendInstance) {
+    if (!process.env.RESEND_API_KEY) {
+      console.error('[Email Service] ❌ MISSING API KEY: Resend will not be able to send emails.');
+      return null;
+    }
+    resendInstance = new Resend(process.env.RESEND_API_KEY);
+  }
+  return resendInstance;
+};
 
 interface TicketAttachment {
   pdfBuffer: Buffer;
@@ -96,6 +101,11 @@ export const sendTicketEmail = async (params: SendTicketEmailParams) => {
       filename: `Ticket_${eventName.replace(/\s+/g, '_')}_${index + 1}.pdf`,
       content: t.pdfBuffer,
     }));
+
+    const resend = getResend();
+    if (!resend) {
+      throw new Error('Resend service not initialized (Missing API Key)');
+    }
 
     const { data, error } = await resend.emails.send({
       from: 'PartyOn Tickets <onboarding@resend.dev>',

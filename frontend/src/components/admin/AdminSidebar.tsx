@@ -1,0 +1,57 @@
+import { NavLink } from 'react-router-dom';
+import { Settings, Terminal, ScanLine, BarChart3, ArrowLeft } from 'lucide-react';
+import { useStore } from '../../lib/store';
+
+export default function AdminSidebar() {
+  const store = useStore();
+  const primaryColor = store.theme?.primaryColor || '#00ffcc';
+
+  const navItems = [
+    { name: 'Configuración', path: '/admin/configuration', icon: Settings },
+    { name: 'Dev & Logs', path: '/admin/dev', icon: Terminal },
+    { name: 'Validación', path: '/admin/validation', icon: ScanLine },
+    { name: 'Gestión', path: '/admin/management', icon: BarChart3 },
+  ];
+
+  return (
+    <div className="hidden md:flex w-64 h-screen bg-[#0c0c0c] border-r border-white/8 flex-col fixed left-0 top-0">
+      <div className="p-6">
+        <div className="flex items-center gap-3 mb-8">
+          <div className="w-8 h-8 rounded bg-white/10 flex items-center justify-center">
+            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: primaryColor }} />
+          </div>
+          <span className="font-bold text-lg tracking-wide text-white">PartyOn</span>
+        </div>
+
+        <nav className="space-y-2">
+          {navItems.map((item) => (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all ${
+                  isActive 
+                    ? 'bg-white/10 text-white' 
+                    : 'text-white/40 hover:text-white hover:bg-white/5'
+                }`
+              }
+              style={({ isActive }) => isActive ? { borderLeft: `3px solid ${primaryColor}` } : {}}
+            >
+              <item.icon className="w-4 h-4" />
+              {item.name}
+            </NavLink>
+          ))}
+        </nav>
+      </div>
+
+      <div className="mt-auto p-6">
+        <NavLink 
+          to="/" 
+          className="flex items-center gap-2 text-xs font-mono text-white/30 hover:text-white transition-colors"
+        >
+          <ArrowLeft className="w-3 h-3" /> Volver a Tienda
+        </NavLink>
+      </div>
+    </div>
+  );
+}

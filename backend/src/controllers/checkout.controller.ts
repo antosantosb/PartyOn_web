@@ -185,6 +185,7 @@ export const processCheckout = async (req: Request, res: Response) => {
             status: 'VALID',
             // Store the Stripe PaymentIntent ID for reconciliation / refunds
             paymentIntent: paymentIntentId ?? null,
+            pricePaid: ticketType.price,
           }
         });
         created.push(ticket);

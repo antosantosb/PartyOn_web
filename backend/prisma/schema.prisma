@@ -9,9 +9,27 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum EventStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String?
+  role      String   @default("ADMIN") // ADMIN, STAFF
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model Event {
-  id          String   @id @default(cuid())
-  name        String   @default("PARTY ON EVENT")
+  id          String      @id @default(cuid())
+  name        String      @default("PARTY ON EVENT")
+  status      EventStatus @default(DRAFT)
   tagline     String?  // Subtítulo bajo el nombre del evento
   date        String   @default("SÁBADO 15 NOVIEMBRE")
   location    String   @default("BRAGA")
@@ -27,6 +45,7 @@ model Event {
   ticketTypes TicketType[]
   theme       Theme?
   tickets     Ticket[]
+  expenses    Expense[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -68,6 +87,18 @@ model Ticket {
   name          String
   status        String     @default("VALID") // VALID, USED, CANCELLED
   paymentIntent String?
+  pricePaid     Float      @default(0)
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  eventId     String
+  event       Event    @relation(fields: [eventId], references: [id])
+  name        String
+  amount      Float
+  category    String   @default("GENERAL") // e.g. VENUE, DJ, SECURITY, BAR
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
