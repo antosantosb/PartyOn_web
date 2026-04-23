@@ -50,7 +50,8 @@ const storage = multer.diskStorage({
     cb(null, name);
   }
 });
-const upload = multer({
+export const upload = multer({
+
   storage,
   limits: { fileSize: 8 * 1024 * 1024 }, // 8 MB max
   fileFilter: (_req, file, cb) => {
@@ -77,15 +78,6 @@ app.get('/health', async (_req, res) => {
   }
 });
 
-// Image upload endpoint — returns the public URL of the uploaded file
-app.post('/api/upload-image', upload.single('image'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: 'No se subió ningún archivo' });
-  }
-  // Return a URL the frontend can use directly as theme.backgroundImage
-  const publicUrl = `http://localhost:${PORT}/uploads/${req.file.filename}`;
-  res.json({ url: publicUrl });
-});
 
 import apiRouter from './routes/api.route';
 app.use('/api', apiRouter);

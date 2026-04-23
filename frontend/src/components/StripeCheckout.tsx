@@ -47,7 +47,8 @@ import { Loader2, ArrowRight, X } from 'lucide-react';
  */
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
 
-const API_BASE = 'http://localhost:3000/api';
+import { API_BASE } from '../config/api';
+
 
 // ─── Inner form — must be inside <Elements> ───────────────────────────────────
 interface CardFormProps {

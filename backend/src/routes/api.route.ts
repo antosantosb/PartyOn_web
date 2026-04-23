@@ -3,19 +3,32 @@ import { getStoreData, updateStoreData, validateTicket, getAllEvents, createEven
 import { createPaymentIntent, processCheckout } from '../controllers/checkout.controller';
 import { updateTicketTypes } from '../controllers/ticketType.controller';
 import { login } from '../controllers/auth.controller';
+import { upload } from '../index';
+
+import { authMiddleware } from '../middleware/auth.middleware';
+
 
 const router = Router();
 
+// Public routes
 router.get('/store-data', getStoreData);
-router.post('/store-data', updateStoreData);
-router.post('/ticket-types', updateTicketTypes);
 router.post('/create-payment-intent', createPaymentIntent);
 router.post('/checkout', processCheckout);
-
-router.get('/admin/events', getAllEvents);
-router.post('/admin/events', createEvent);
-router.delete('/admin/events/:id', deleteEvent);
-router.post('/admin/tickets/validate', validateTicket);
 router.post('/auth/login', login);
+
+// Protected Admin routes
+router.post('/store-data', authMiddleware, updateStoreData);
+router.post('/ticket-types', authMiddleware, updateTicketTypes);
+router.get('/admin/events', authMiddleware, getAllEvents);
+router.post('/admin/events', authMiddleware, createEvent);
+router.delete('/admin/events/:id', authMiddleware, deleteEvent);
+router.post('/admin/tickets/validate', authMiddleware, validateTicket);
+router.post('/upload-image', authMiddleware, upload.single('image'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No se subió ningún archivo' });
+  const publicUrl = `http://localhost:${process.env.PORT || 3000}/uploads/${req.file.filename}`;
+  res.json({ url: publicUrl });
+});
+
+
 
 export default router;

@@ -47,10 +47,21 @@ export default function AdminSidebar() {
       <div className="mt-auto p-6">
         <NavLink 
           to="/" 
-          className="flex items-center gap-2 text-xs font-mono text-white/30 hover:text-white transition-colors"
+          className="flex items-center gap-2 text-xs font-mono text-white/30 hover:text-white transition-colors mb-4"
         >
           <ArrowLeft className="w-3 h-3" /> Volver a Tienda
         </NavLink>
+
+        <button 
+          onClick={() => {
+            localStorage.removeItem('adminToken');
+            window.location.href = '/login';
+          }}
+          className="flex items-center gap-2 text-xs font-mono text-red-500/50 hover:text-red-400 transition-colors w-full"
+        >
+          <ScanLine className="w-3 h-3 rotate-45" /> Cerrar Sesión
+        </button>
+
       </div>
     </div>
   );

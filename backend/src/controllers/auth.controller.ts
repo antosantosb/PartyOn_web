@@ -8,6 +8,8 @@ const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_do_not_use_in_prod
 export const login = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
+    console.log('Login attempt for:', email);
+
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email y contraseña requeridos' });

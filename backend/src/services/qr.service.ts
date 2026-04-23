@@ -11,12 +11,9 @@ import QRCode from 'qrcode';
  * @returns Promise<string> - A Base64 string (data:image/png;base64,...)
  */
 export const generateTicketQR = async (ticketId: string, primaryColor: string): Promise<string> => {
-  // 1. Define the validation URL (Phase 3 Scanner will use this)
-  const validationUrl = `https://partyon.app/validate/${ticketId}`;
-
-  // 2. Generate the QR as a Base64 string
+  // We embed ONLY the plain string of the ticket ID to keep the QR matrix sparse
   // We use toDataURL instead of toBuffer so it can be directly embedded in PDF/HTML
-  return await QRCode.toDataURL(validationUrl, {
+  return await QRCode.toDataURL(ticketId, {
     color: {
       dark: primaryColor, // The QR dots will match the brand color
       light: '#FFFFFF',   // Keeping light background for high contrast

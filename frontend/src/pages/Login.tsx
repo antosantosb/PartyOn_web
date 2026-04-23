@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Lock, Mail, ArrowRight, Loader2 } from 'lucide-react';
 
-const API_BASE = 'http://localhost:3000/api';
+import { API_BASE } from '../config/api';
+
 
 export default function Login() {
   const [email, setEmail] = useState('');

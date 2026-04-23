@@ -53,6 +53,29 @@ export const updateStoreData = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Missing event ID" });
     }
 
+    // Enforce single ACTIVE event logic
+    if (eventData.status === 'ACTIVE') {
+      const activeEvent = await prisma.event.findFirst({
+        where: { status: 'ACTIVE', id: { not: eventData.id } }
+      });
+
+      if (activeEvent) {
+        if (!req.body.resolveConflict) {
+          return res.status(409).json({
+            error: "Conflict",
+            activeEventName: activeEvent.name,
+            activeEventId: activeEvent.id
+          });
+        } else {
+          // Transition the previous active event to COMPLETED
+          await prisma.event.update({
+            where: { id: activeEvent.id },
+            data: { status: 'COMPLETED' }
+          });
+        }
+      }
+    }
+
     // Update event — including new tagline & lineup fields
     await prisma.event.update({
       where: { id: eventData.id },

@@ -1,8 +1,8 @@
 import { useEffect, useState, useRef } from 'react';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import { BrowserQRCodeReader } from '@zxing/browser';
 import { CheckCircle, XCircle, Search, Ticket } from 'lucide-react';
 
-const API_BASE = 'http://localhost:3000/api';
+import { apiFetch } from '../../lib/api-client';
 
 type ValidationState = 'idle' | 'success' | 'error' | 'loading';
 
@@ -12,28 +12,44 @@ export default function ValidationScanner() {
   const [ticketData, setTicketData] = useState<{ name: string; ticketTypeName: string } | null>(null);
   
   const [searchQuery, setSearchQuery] = useState('');
+  
   const lastScannedRef = useRef<string | null>(null);
+  const isProcessingRef = useRef(false);
 
   useEffect(() => {
-    // Only initialize the scanner once
-    const scanner = new Html5QrcodeScanner(
-      'reader',
-      { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 },
-      /* verbose= */ false
-    );
+    const codeReader = new BrowserQRCodeReader();
+    let controls: any = null;
 
-    const onScanSuccess = (decodedText: string) => {
-      // Prevent rapid double-scanning of the same QR
-      if (lastScannedRef.current === decodedText && state !== 'idle') return;
-      lastScannedRef.current = decodedText;
-      
-      handleValidation(decodedText);
+    const startScanner = async () => {
+      try {
+        controls = await codeReader.decodeFromVideoDevice(
+          undefined, 
+          'video-element', 
+          (result, error, ctrls) => {
+            if (result) {
+              const decodedText = result.getText();
+              
+              if (isProcessingRef.current) return;
+              if (lastScannedRef.current === decodedText) return;
+              
+              isProcessingRef.current = true;
+              lastScannedRef.current = decodedText;
+              
+              handleValidation(decodedText);
+            }
+          }
+        );
+      } catch (err) {
+        console.error("Scanner Error:", err);
+      }
     };
 
-    scanner.render(onScanSuccess, () => {});
+    startScanner();
 
     return () => {
-      scanner.clear().catch(console.error);
+      if (controls) {
+        controls.stop();
+      }
     };
   }, []);
 
@@ -43,12 +59,11 @@ export default function ValidationScanner() {
     setMessage('Validando...');
 
     try {
-      const res = await fetch(`${API_BASE}/admin/tickets/validate`, {
+      const res = await apiFetch('/admin/tickets/validate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ticketId })
       });
-      
+
       const data = await res.json();
 
       if (res.ok) {
@@ -57,33 +72,34 @@ export default function ValidationScanner() {
         setTicketData(data.ticket);
       } else {
         setState('error');
-        setMessage(data.error || 'INVALID TICKET');
+        setMessage(data.error || 'INVALID / USED');
       }
     } catch (err) {
       setState('error');
       setMessage('Error de conexión');
     }
 
-    // Reset after 3 seconds
+    // Reset after 3 seconds so staff don't touch their phones between guests
     setTimeout(() => {
       setState('idle');
       setMessage('');
       setTicketData(null);
       lastScannedRef.current = null;
-    }, 3500);
+      isProcessingRef.current = false;
+    }, 3000);
   };
 
   const handleManualSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchQuery.trim()) return;
-    // For now, if they enter an exact ticket ID, validate it directly.
-    // In the future, this could hit a search endpoint and list matches.
+    
+    isProcessingRef.current = true;
     handleValidation(searchQuery.trim());
     setSearchQuery('');
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white flex flex-col relative">
+    <div className="min-h-screen bg-[#050505] text-white flex flex-col relative overflow-hidden">
       
       {/* ── OVERLAYS ── */}
       {state === 'success' && (
@@ -107,7 +123,7 @@ export default function ValidationScanner() {
       )}
 
       {/* ── HEADER ── */}
-      <div className="p-4 border-b border-white/10 bg-[#0c0c0c] flex items-center justify-between">
+      <div className="p-4 border-b border-white/10 bg-[#0c0c0c] flex items-center justify-between shrink-0">
         <h2 className="font-bold tracking-widest uppercase text-white/80">Scanner</h2>
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
@@ -116,8 +132,19 @@ export default function ValidationScanner() {
       </div>
 
       {/* ── CAMERA VIEW (Top Half) ── */}
-      <div className="w-full bg-black relative flex-1 min-h-[50vh]">
-        <div id="reader" className="w-full h-full border-none [&>div]:border-none [&_video]:object-cover [&_video]:w-full [&_video]:h-full" />
+      <div className="w-full bg-black relative flex-1 min-h-[50vh] overflow-hidden flex items-center justify-center">
+        {/* We use a direct video element for ZXing to attach to */}
+        <video id="video-element" className="absolute top-0 left-0 w-full h-full object-cover" />
+        
+        {/* Scanner target box overlay */}
+        <div className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center">
+          <div className="w-64 h-64 border-2 border-white/20 rounded-3xl relative">
+            <div className="absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 border-green-500 rounded-tl-3xl"></div>
+            <div className="absolute -top-1 -right-1 w-8 h-8 border-t-4 border-r-4 border-green-500 rounded-tr-3xl"></div>
+            <div className="absolute -bottom-1 -left-1 w-8 h-8 border-b-4 border-l-4 border-green-500 rounded-bl-3xl"></div>
+            <div className="absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 border-green-500 rounded-br-3xl"></div>
+          </div>
+        </div>
       </div>
 
       {/* ── MANUAL SEARCH (Bottom Half) ── */}
@@ -137,7 +164,8 @@ export default function ValidationScanner() {
           </div>
           <button 
             type="submit"
-            className="bg-white/10 hover:bg-white/20 px-6 rounded-xl font-semibold transition-colors flex items-center justify-center"
+            disabled={state === 'loading'}
+            className="bg-white/10 hover:bg-white/20 disabled:opacity-50 px-6 rounded-xl font-semibold transition-colors flex items-center justify-center"
           >
             Buscar
           </button>

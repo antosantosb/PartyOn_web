@@ -23,7 +23,8 @@ export const defaultTheme = {
   backgroundImage: "/hero.jpg",
 };
 
-const API_BASE = 'http://localhost:3000/api';
+import { API_BASE } from '../config/api';
+
 
 // Fields we cache in localStorage (no ticket/financial data)
 const CACHE_KEYS = [

@@ -5,7 +5,9 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
-const API_BASE = 'http://localhost:3000/api';
+import { apiFetch } from '../../lib/api-client';
+
+
 
 interface TicketTypeDraft {
   id?: string;
@@ -29,8 +31,9 @@ export default function Admin() {
 
   const fetchEvents = async () => {
     try {
-      const res = await fetch(`${API_BASE}/admin/events`);
+      const res = await apiFetch('/admin/events');
       const data = await res.json();
+
       if (data.events && data.events.length > 0) {
         setAllEvents(data.events);
         
@@ -64,8 +67,9 @@ export default function Admin() {
   const createNewEvent = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/admin/events`, { method: 'POST' });
+      const res = await apiFetch('/admin/events', { method: 'POST' });
       const data = await res.json();
+
       if (data.event) {
         await fetchEvents();
         selectEvent(data.event);
@@ -81,8 +85,9 @@ export default function Admin() {
     
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/admin/events/${draft.event.id}`, { method: 'DELETE' });
+      const res = await apiFetch(`/admin/events/${draft.event.id}`, { method: 'DELETE' });
       const data = await res.json();
+
       if (data.success) {
         await fetchEvents();
       } else {
@@ -110,17 +115,32 @@ export default function Admin() {
 
     setSaveStatus('saving');
     try {
-      await fetch(`${API_BASE}/store-data`, {
+      const res = await apiFetch('/store-data', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ eventData: draft.event, theme: draft.theme })
       });
 
+      if (res.status === 409) {
+        const errorData = await res.json();
+        const msg = `Solo puedes tener una fiesta en activo, ¿quieres poner ${errorData.activeEventName} como terminada?`;
+        if (window.confirm(msg)) {
+          const resRetry = await apiFetch('/store-data', {
+            method: 'POST',
+            body: JSON.stringify({ eventData: draft.event, theme: draft.theme, resolveConflict: true })
+          });
+          if (!resRetry.ok) throw new Error('Error al guardar el evento.');
+        } else {
+          setSaveStatus('idle');
+          return;
+        }
+      } else if (!res.ok) {
+        throw new Error('Error al guardar el evento.');
+      }
+
       // Save ticket types separately (upsert)
       if (draft.event.id) {
-        const res = await fetch(`${API_BASE}/ticket-types`, {
+        const res = await apiFetch('/ticket-types', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             eventId: draft.event.id,
             ticketTypes: ticketTypes.map(({ _key, ...tt }) => tt)
@@ -128,6 +148,7 @@ export default function Admin() {
         });
         const data = await res.json();
         if (!data.success) throw new Error(data.error || 'Error en ticket types');
+
         
         await fetchEvents(); // Refresh data entirely
       }
@@ -157,8 +178,9 @@ export default function Admin() {
     try {
       const form = new FormData();
       form.append('image', file);
-      const res = await fetch(`${API_BASE}/upload-image`, { method: 'POST', body: form });
+      const res = await apiFetch('/upload-image', { method: 'POST', body: form });
       const data = await res.json();
+
       if (data.url) {
         setDraft((d: any) => ({ ...d, theme: { ...d.theme, backgroundImage: data.url } }));
       } else {

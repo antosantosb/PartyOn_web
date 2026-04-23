@@ -115,10 +115,15 @@ export const sendTicketEmail = async (params: SendTicketEmailParams) => {
       attachments: attachments,
     });
 
-    if (error) throw error;
+    if (error) {
+      console.error('[sendTicketEmail] Resend API responded with an error:', JSON.stringify(error, null, 2));
+      throw error;
+    }
+    
+    console.log(`[sendTicketEmail] Email successfully sent to ${to}. Message ID:`, data?.id);
     return { success: true, messageId: data?.id };
-  } catch (error) {
-    console.error('[sendTicketEmail] Error sending email:', error);
+  } catch (error: any) {
+    console.error('[sendTicketEmail] Exception while sending email:', error?.message || error);
     throw error;
   }
 };
