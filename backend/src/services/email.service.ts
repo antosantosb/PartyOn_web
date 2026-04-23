@@ -1,4 +1,5 @@
 import { Resend } from 'resend';
+import { prisma } from '../index';
 // import { marked } from 'marked'; // ESM only, using dynamic import instead
 
 /**
@@ -117,6 +118,9 @@ export const sendTicketEmail = async (params: SendTicketEmailParams) => {
 
     if (error) {
       console.error('[sendTicketEmail] Resend API responded with an error:', JSON.stringify(error, null, 2));
+      await prisma.auditLog.create({
+        data: { severity: 'CRITICAL', action: 'EXTERNAL_API_ERROR', details: `Message: ${error.message || 'Unknown Resend Error'}` }
+      });
       throw error;
     }
     
@@ -124,6 +128,9 @@ export const sendTicketEmail = async (params: SendTicketEmailParams) => {
     return { success: true, messageId: data?.id };
   } catch (error: any) {
     console.error('[sendTicketEmail] Exception while sending email:', error?.message || error);
+    await prisma.auditLog.create({
+      data: { severity: 'CRITICAL', action: 'EXTERNAL_API_ERROR', details: `Message: ${error?.message || 'Unknown Error'}` }
+    });
     throw error;
   }
 };

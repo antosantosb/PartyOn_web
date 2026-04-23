@@ -3,6 +3,7 @@ import { getStoreData, updateStoreData, validateTicket, getAllEvents, createEven
 import { createPaymentIntent, processCheckout } from '../controllers/checkout.controller';
 import { updateTicketTypes } from '../controllers/ticketType.controller';
 import { login } from '../controllers/auth.controller';
+import { getDatabaseStats, getSystemLogs, searchTickets } from '../controllers/dev.controller';
 import { upload } from '../index';
 
 import { authMiddleware } from '../middleware/auth.middleware';
@@ -23,6 +24,12 @@ router.get('/admin/events', authMiddleware, getAllEvents);
 router.post('/admin/events', authMiddleware, createEvent);
 router.delete('/admin/events/:id', authMiddleware, deleteEvent);
 router.post('/admin/tickets/validate', authMiddleware, validateTicket);
+
+// Dev / God Mode routes
+router.get('/admin/dev/database-stats', authMiddleware, getDatabaseStats);
+router.get('/admin/dev/system-logs', authMiddleware, getSystemLogs);
+router.get('/admin/dev/tickets/search', authMiddleware, searchTickets);
+
 router.post('/upload-image', authMiddleware, upload.single('image'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No se subió ningún archivo' });
   const publicUrl = `http://localhost:${process.env.PORT || 3000}/uploads/${req.file.filename}`;

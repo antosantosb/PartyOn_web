@@ -101,6 +101,11 @@ export const createPaymentIntent = async (req: Request, res: Response) => {
       code: error?.code,      // e.g. 'api_key_expired'
       message: error?.message
     });
+    
+    await prisma.auditLog.create({
+      data: { severity: 'CRITICAL', action: 'EXTERNAL_API_ERROR', details: `Message: ${error?.message || 'Unknown Stripe Error'}` }
+    });
+
     res.status(500).json({ error: 'No se pudo crear el pago' });
   }
 };
@@ -143,6 +148,10 @@ export const processCheckout = async (req: Request, res: Response) => {
         type: error?.type,
         code: error?.code,
         message: error?.message
+      });
+
+      await prisma.auditLog.create({
+        data: { severity: 'CRITICAL', action: 'EXTERNAL_API_ERROR', details: `Message: ${error?.message || 'Unknown Stripe Error'}` }
       });
       return res.status(400).json({ error: 'No se pudo verificar el pago con Stripe' });
     }

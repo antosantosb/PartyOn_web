@@ -20,12 +20,18 @@ export const login = async (req: Request, res: Response) => {
     });
 
     if (!user) {
+      await prisma.auditLog.create({
+        data: { severity: 'WARNING', action: 'FAILED_LOGIN_ATTEMPT', details: `Attempted email: ${email}` }
+      });
       return res.status(401).json({ error: 'Credenciales inválidas' });
     }
 
     const isValid = await bcrypt.compare(password, user.password);
 
     if (!isValid) {
+      await prisma.auditLog.create({
+        data: { severity: 'WARNING', action: 'FAILED_LOGIN_ATTEMPT', details: `Attempted email: ${email}` }
+      });
       return res.status(401).json({ error: 'Credenciales inválidas' });
     }
 

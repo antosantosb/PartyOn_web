@@ -198,10 +198,24 @@ export const validateTicket = async (req: Request, res: Response) => {
     });
 
     if (!ticket) {
+      await prisma.auditLog.create({
+        data: {
+          severity: 'WARNING',
+          action: 'SCAN_FAILED_NOT_FOUND',
+          details: `Attempted ID: ${ticketId}`
+        }
+      });
       return res.status(404).json({ error: "Entrada no encontrada" });
     }
 
     if (ticket.status === 'USED') {
+      await prisma.auditLog.create({
+        data: {
+          severity: 'ERROR',
+          action: 'SCAN_FAILED_ALREADY_USED',
+          details: `Ticket ${ticket.id} belonging to ${ticket.name} was rejected.`
+        }
+      });
       return res.status(400).json({ error: "Esta entrada YA HA SIDO USADA" });
     }
 
