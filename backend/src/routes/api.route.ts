@@ -32,7 +32,7 @@ router.get('/admin/dev/tickets/search', authMiddleware, searchTickets);
 
 router.post('/upload-image', authMiddleware, upload.single('image'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No se subió ningún archivo' });
-  const publicUrl = `http://localhost:${process.env.PORT || 3000}/uploads/${req.file.filename}`;
+  const publicUrl = `${process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 3000}`}/uploads/${req.file.filename}`;
   res.json({ url: publicUrl });
 });
 

@@ -40,6 +40,10 @@ services:
       - uploads_data:/app/uploads
     depends_on:
       - db
+    command: >
+      sh -c "npx prisma migrate deploy && 
+             npx prisma db seed && 
+             node dist/index.js"
 
 volumes:
   db_data:

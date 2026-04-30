@@ -3,7 +3,11 @@ import { prisma } from '../index';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_do_not_use_in_prod';
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+  console.error('CRITICAL: JWT_SECRET is not defined in environment variables!');
+}
 
 export const login = async (req: Request, res: Response) => {
   try {

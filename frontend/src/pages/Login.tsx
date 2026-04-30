@@ -44,7 +44,7 @@ export default function Login() {
       <div className="w-full max-w-md bg-[#0c0c0c] border border-white/10 rounded-2xl p-8 relative overflow-hidden">
         {/* Decorative accent */}
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#00ffcc] to-[#ff007f]" />
-        
+
         <div className="mb-8 text-center">
           <div className="w-12 h-12 bg-white/5 rounded-xl flex items-center justify-center mx-auto mb-4">
             <Lock className="w-6 h-6 text-[#00ffcc]" />
@@ -70,7 +70,7 @@ export default function Login() {
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 className="w-full bg-[#161616] border border-white/10 rounded-lg pl-10 pr-4 py-3 text-white focus:outline-none focus:border-[#00ffcc]/50 transition-colors"
-                placeholder="admin@partyon.pt"
+                placeholder="admin"
               />
             </div>
           </div>

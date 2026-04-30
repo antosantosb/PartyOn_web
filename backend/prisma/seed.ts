@@ -4,8 +4,8 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
-  const email = 'admin@partyon.pt';
-  const password = 'password123';
+  const email = process.env.INITIAL_ADMIN_EMAIL || 'admin@partyon.pt';
+  const password = process.env.INITIAL_ADMIN_PASSWORD || 'password123';
 
   // Check if admin already exists
   const existingAdmin = await prisma.user.findUnique({
