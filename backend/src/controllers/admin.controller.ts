@@ -1,11 +1,36 @@
 import { Request, Response } from 'express';
+import { Prisma } from '@prisma/client';
+import { fromZonedTime } from 'date-fns-tz';
 import { prisma } from '../index';
+
+/**
+ * Parses a datetime-local string (e.g., "2024-11-15T23:00") assuming it represents
+ * local time in Portugal (Europe/Lisbon) and converts it to a UTC Date object
+ * for database storage.
+ */
+function parseDatetimeLocal(value?: string | null): Date | null {
+  if (!value || value.trim() === '') return null;
+  
+  try {
+    // We explicitly tell fromZonedTime that this string is in 'Europe/Lisbon' time.
+    // This handles Daylight Saving Time (DST) automatically.
+    const date = fromZonedTime(value, 'Europe/Lisbon');
+    
+    // Check if the resulting date is valid
+    if (isNaN(date.getTime())) return null;
+    
+    return date;
+  } catch (err) {
+    console.error(`[parseDatetimeLocal] Failed to parse value: ${value}`, err);
+    return null;
+  }
+}
 
 export const getStoreData = async (req: Request, res: Response) => {
   try {
     let event = await prisma.event.findFirst({
       where: { status: 'ACTIVE' },
-      include: { ticketTypes: true, theme: true }
+      include: { ticketTypes: { where: { isArchived: false } }, theme: true }
     });
 
     if (!event) {
@@ -22,8 +47,8 @@ export const getStoreData = async (req: Request, res: Response) => {
           logoText2: "ON",
           ticketTypes: {
             create: [
-              { name: 'General', price: 15, stock: 150 },
-              { name: 'VIP', price: 30, stock: 0 }
+              { name: 'General', price: 15, maxStock: 150 },
+              { name: 'VIP', price: 30, maxStock: 0 }
             ]
           },
           theme: {
@@ -76,7 +101,14 @@ export const updateStoreData = async (req: Request, res: Response) => {
       }
     }
 
-    // Update event — including new tagline & lineup fields
+    // Task 2: Fix the Silent Save Error (Backend Logging)
+    const parsedStartsAt = parseDatetimeLocal(eventData.startsAt);
+    const parsedEndsAt = parseDatetimeLocal(eventData.endsAt);
+
+    console.log("Incoming Date Strings:", eventData.startsAt, eventData.endsAt);
+    console.log("Parsed UTC Dates:", parsedStartsAt?.toISOString(), parsedEndsAt?.toISOString());
+
+    // Update event — including new tagline & lineup fields + UTC dates
     await prisma.event.update({
       where: { id: eventData.id },
       data: {
@@ -84,6 +116,8 @@ export const updateStoreData = async (req: Request, res: Response) => {
         status: eventData.status || undefined,
         tagline: eventData.tagline ?? null,
         date: eventData.date,
+        startsAt: parsedStartsAt,
+        endsAt: parsedEndsAt,
         location: eventData.location,
         artistInfo: eventData.artistInfo,
         lineup: eventData.lineup ?? null,
@@ -101,15 +135,34 @@ export const updateStoreData = async (req: Request, res: Response) => {
         data: {
           primaryColor: theme.primaryColor,
           secondaryColor: theme.secondaryColor,
-          backgroundImage: theme.backgroundImage
+          backgroundImage: theme.backgroundImage,
+          backgroundImageMobile: theme.backgroundImageMobile
         }
       });
     }
 
     res.json({ success: true });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Failed to update event data" });
+  } catch (error: any) {
+    console.error("[updateStoreData] Error details:", error);
+
+    // Task 1: Verbose Error Handling
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      // Return specific Prisma error info
+      return res.status(400).json({
+        error: "Database error during event update",
+        code: error.code,
+        message: error.message,
+        meta: error.meta
+      });
+    }
+
+    // Generic or development-friendly error
+    const isDev = process.env.NODE_ENV !== 'production';
+    res.status(500).json({
+      error: "Error al guardar el evento",
+      message: error.message,
+      stack: isDev ? error.stack : undefined
+    });
   }
 };
 
@@ -117,7 +170,7 @@ export const getAllEvents = async (req: Request, res: Response) => {
   try {
     const events = await prisma.event.findMany({
       orderBy: { createdAt: 'desc' },
-      include: { ticketTypes: true, theme: true }
+      include: { ticketTypes: { where: { isArchived: false } }, theme: true }
     });
     res.json({ events });
   } catch (error) {
@@ -139,7 +192,8 @@ export const createEvent = async (req: Request, res: Response) => {
           create: {
             primaryColor: "#00ffcc",
             secondaryColor: "#ff007f",
-            backgroundImage: ""
+            backgroundImage: "",
+            backgroundImageMobile: ""
           }
         }
       },
@@ -197,12 +251,15 @@ export const validateTicket = async (req: Request, res: Response) => {
       include: { ticketType: true }
     });
 
+    const userId = (req as any).user?.userId;
+
     if (!ticket) {
       await prisma.auditLog.create({
         data: {
           severity: 'WARNING',
           action: 'SCAN_FAILED_NOT_FOUND',
-          details: `Attempted ID: ${ticketId}`
+          details: `Attempted ID: ${ticketId}`,
+          userId
         }
       });
       return res.status(404).json({ error: "Entrada no encontrada" });
@@ -213,7 +270,8 @@ export const validateTicket = async (req: Request, res: Response) => {
         data: {
           severity: 'ERROR',
           action: 'SCAN_FAILED_ALREADY_USED',
-          details: `Ticket ${ticket.id} belonging to ${ticket.name} was rejected.`
+          details: `Ticket ${ticket.id} belonging to ${ticket.name} was rejected.`,
+          userId
         }
       });
       return res.status(400).json({ error: "Esta entrada YA HA SIDO USADA" });
@@ -223,10 +281,23 @@ export const validateTicket = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Esta entrada está CANCELADA" });
     }
 
-    // Update to USED
+    // Update to USED with analytics
     const updated = await prisma.ticket.update({
       where: { id: ticketId },
-      data: { status: 'USED' }
+      data: { 
+        status: 'USED',
+        scannedAt: new Date(),
+        scannedById: userId
+      }
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        severity: 'INFO',
+        action: 'TICKET_VALIDATED',
+        details: `Ticket ${updated.id} validated by ${userId}`,
+        userId
+      }
     });
 
     res.json({

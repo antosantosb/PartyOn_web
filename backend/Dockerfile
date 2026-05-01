@@ -34,9 +34,10 @@ COPY package*.json ./
 # Install ONLY production dependencies
 RUN npm ci --omit=dev
 
-# Copy generated Prisma binaries and compiled code from Stage 1
+# Copy generated Prisma binaries, schema, and compiled code from Stage 1
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/dist ./dist
 
 # Expose port

@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Lock, Mail, ArrowRight, Loader2 } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { Lock, Mail, ArrowRight, Loader2, ArrowLeft } from 'lucide-react';
 
 import { API_BASE } from '../config/api';
 
@@ -98,6 +98,11 @@ export default function Login() {
             {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><ArrowRight className="w-5 h-5" /> Iniciar Sesión</>}
           </button>
         </form>
+
+        <Link to="/" className="mt-8 flex items-center justify-center gap-2 text-sm text-white/40 hover:text-white transition-colors group">
+          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+          Volver a la tienda
+        </Link>
       </div>
     </div>
   );

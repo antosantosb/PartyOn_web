@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
-import {
-  Settings, Save, Image as ImageIcon, ArrowLeft,
-  CheckCircle2, Loader2, Plus, Trash2, AlertCircle, Mail
-} from 'lucide-react';
+import { Save, Trash2, Plus, ImageIcon, Loader2, Mail, Layout, Type, Palette, Calendar, MapPin, List, Eye, Settings, ArrowLeft, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { formatInTimeZone } from 'date-fns-tz';
 
 import { apiFetch } from '../../lib/api-client';
 
@@ -13,8 +11,12 @@ interface TicketTypeDraft {
   id?: string;
   name: string;
   price: number;
-  stock: number;
-  _key: number; // local key for React list rendering
+  maxStock: number;
+  soldCount: number;
+  saleStartsAt: string;
+  saleEndsAt: string;
+  forceSoldOut: boolean;
+  _key: number;
 }
 
 let keyCounter = 0;
@@ -23,7 +25,7 @@ const nextKey = () => ++keyCounter;
 export default function Admin() {
   const [allEvents, setAllEvents] = useState<any[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string>('');
-  
+
   const [draft, setDraft] = useState<any>({ event: {}, theme: {} });
   const [ticketTypes, setTicketTypes] = useState<TicketTypeDraft[]>([]);
   const [ticketError, setTicketError] = useState<string | null>(null);
@@ -35,13 +37,18 @@ export default function Admin() {
       const data = await res.json();
 
       if (data.events && data.events.length > 0) {
-        setAllEvents(data.events);
-        
+        const sorted = [...data.events].sort((a: any, b: any) => {
+          if (a.status === 'ACTIVE') return -1;
+          if (b.status === 'ACTIVE') return 1;
+          return 0;
+        });
+        setAllEvents(sorted);
+
         // Ensure we maintain selection if reloading
-        const evtToSelect = selectedEventId 
+        const evtToSelect = selectedEventId
           ? (data.events.find((e: any) => e.id === selectedEventId) || data.events[0])
           : data.events[0];
-          
+
         selectEvent(evtToSelect);
       }
     } catch (e) {
@@ -56,7 +63,12 @@ export default function Admin() {
   const selectEvent = (evt: any) => {
     setSelectedEventId(evt.id);
     setDraft({ event: { ...evt, partyName: evt.name }, theme: evt.theme || { primaryColor: '#00ffcc', secondaryColor: '#ff007f' } });
-    setTicketTypes(evt.ticketTypes?.map((tt: any) => ({ ...tt, _key: nextKey() })) || []);
+    setTicketTypes(evt.ticketTypes?.map((tt: any) => ({
+      ...tt,
+      saleStartsAt: tt.saleStartsAt ? formatInTimeZone(new Date(tt.saleStartsAt), 'Europe/Lisbon', "yyyy-MM-dd'T'HH:mm") : '',
+      saleEndsAt: tt.saleEndsAt ? formatInTimeZone(new Date(tt.saleEndsAt), 'Europe/Lisbon', "yyyy-MM-dd'T'HH:mm") : '',
+      _key: nextKey()
+    })) || []);
   };
 
   const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -82,7 +94,7 @@ export default function Admin() {
   const handleDeleteEvent = async () => {
     if (!draft.event?.id) return;
     if (!window.confirm("¿Estás seguro de que quieres eliminar este evento? Esta acción no se puede deshacer.")) return;
-    
+
     setLoading(true);
     try {
       const res = await apiFetch(`/admin/events/${draft.event.id}`, { method: 'DELETE' });
@@ -103,16 +115,86 @@ export default function Admin() {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [isUploading, setIsUploading] = useState(false);
 
-  const handleSave = async () => {
+  const handleSave = async (e?: React.FormEvent) => {
+    if (e && e.preventDefault) e.preventDefault();
     setTicketError(null);
 
-    // Validate ticket types before saving
-    for (const tt of ticketTypes) {
-      if (!tt.name.trim()) return setTicketError('Todos los tipos de entrada necesitan nombre.');
-      if (isNaN(tt.price) || tt.price < 0) return setTicketError(`Precio inválido en "${tt.name || 'sin nombre'}"`);
-      if (isNaN(tt.stock) || tt.stock < 0) return setTicketError(`Stock inválido en "${tt.name || 'sin nombre'}"`);
+    // 1. Defensively check Event dates
+    const eventStartsAt = draft.event?.startsAt;
+    const eventEndsAt = draft.event?.endsAt;
+
+    if (eventStartsAt && eventEndsAt) {
+      const start = new Date(eventStartsAt).getTime();
+      const end = new Date(eventEndsAt).getTime();
+
+      if (!isNaN(start) && !isNaN(end) && end < start) {
+        setTicketError("Error: La fecha de finalización del evento no puede ser anterior a la de inicio.");
+        return;
+      }
     }
 
+    // 2. Validate ticket types before saving
+    for (const tt of ticketTypes) {
+      if (!tt.name?.trim()) {
+        setTicketError('Todos los tipos de entrada necesitan nombre.');
+        return;
+      }
+      if (typeof tt.price !== 'number' || tt.price < 0) {
+        setTicketError(`Precio inválido en "${tt.name}"`);
+        return;
+      }
+      if (typeof tt.maxStock !== 'number' || tt.maxStock < 0) {
+        setTicketError(`Capacidad inválida en "${tt.name}"`);
+        return;
+      }
+
+      // Safe check: Ticket sale window vs Event window
+      if (tt.saleEndsAt && eventEndsAt) {
+        const ticketEnd = new Date(tt.saleEndsAt).getTime();
+        const eventEnd = new Date(eventEndsAt).getTime();
+
+        if (!isNaN(ticketEnd) && !isNaN(eventEnd) && ticketEnd > eventEnd) {
+          setTicketError(`Error: Las entradas de "${tt.name}" no pueden venderse después de que el evento haya terminado.`);
+          return;
+        }
+      }
+
+      if (tt.saleStartsAt && eventStartsAt) {
+        const ticketStart = new Date(tt.saleStartsAt).getTime();
+        const eventStart = new Date(eventStartsAt).getTime();
+        if (!isNaN(ticketStart) && !isNaN(eventStart) && ticketStart > eventStart) {
+          setTicketError(`Error: Las entradas de "${tt.name}" no pueden venderse después del inicio del evento.`);
+          return;
+        }
+      }
+
+      if (tt.saleStartsAt && tt.saleEndsAt) {
+        const ticketStart = new Date(tt.saleStartsAt).getTime();
+        const ticketEnd = new Date(tt.saleEndsAt).getTime();
+        if (!isNaN(ticketStart) && !isNaN(ticketEnd) && ticketStart > ticketEnd) {
+          setTicketError(`Error: El periodo de venta de "${tt.name}" no puede terminar antes de que empiece.`);
+          return;
+        }
+        if (ticketStart < Date.now()) {
+          setTicketError(`Error: El periodo de venta de "${tt.name}" no puede empezar en el pasado.`);
+          return;
+        }
+        if (ticketEnd < Date.now()) {
+          setTicketError(`Error: El periodo de venta de "${tt.name}" no puede terminar en el pasado.`);
+          return;
+        }
+
+      }
+
+    }
+
+    // 3. Safety Interceptor for ACTIVE events
+    if (draft.event?.status === 'ACTIVE') {
+      const confirmed = window.confirm("El evento ya está online, entradas compradas anteriormente no estarán sujetas a este cambio. ¿Continuar?");
+      if (!confirmed) return;
+    }
+
+    // 4. Execution
     setSaveStatus('saving');
     try {
       const res = await apiFetch('/store-data', {
@@ -128,50 +210,60 @@ export default function Admin() {
             method: 'POST',
             body: JSON.stringify({ eventData: draft.event, theme: draft.theme, resolveConflict: true })
           });
-          if (!resRetry.ok) throw new Error('Error al guardar el evento.');
+          if (!resRetry.ok) {
+            setSaveStatus('idle');
+            setTicketError('Error al guardar el evento tras resolver conflicto.');
+            return;
+          }
         } else {
           setSaveStatus('idle');
           return;
         }
       } else if (!res.ok) {
-        throw new Error('Error al guardar el evento.');
+        setSaveStatus('idle');
+        setTicketError('Error al guardar el evento en el servidor.');
+        return;
       }
 
-      // Save ticket types separately (upsert)
-      if (draft.event.id) {
-        const res = await apiFetch('/ticket-types', {
+      // Save ticket types separately
+      if (draft.event?.id) {
+        const resTickets = await apiFetch('/ticket-types', {
           method: 'POST',
           body: JSON.stringify({
             eventId: draft.event.id,
             ticketTypes: ticketTypes.map(({ _key, ...tt }) => tt)
           })
         });
-        const data = await res.json();
-        if (!data.success) throw new Error(data.error || 'Error en ticket types');
+        const dataTickets = await resTickets.json();
+        if (!dataTickets.success) {
+          setSaveStatus('idle');
+          setTicketError(dataTickets.error || 'Error al guardar los tipos de entrada.');
+          return;
+        }
 
-        
-        await fetchEvents(); // Refresh data entirely
+        await fetchEvents();
       }
 
       setSaveStatus('saved');
       setTimeout(() => setSaveStatus('idle'), 2500);
     } catch (e: any) {
       setSaveStatus('idle');
-      setTicketError(e.message || 'Error al guardar. Comprueba el backend.');
+      setTicketError('Error de red o servidor al intentar guardar. Comprueba la conexión.');
+      console.error('[handleSave] Crash prevented:', e);
     }
   };
 
   // Ticket type helpers
   const addTicketType = () =>
-    setTicketTypes(prev => [...prev, { name: '', price: 0, stock: 100, _key: nextKey() }]);
+    setTicketTypes(prev => [...prev, { name: '', price: 0, maxStock: 100, soldCount: 0, saleStartsAt: '', saleEndsAt: '', forceSoldOut: false, _key: nextKey() }]);
 
-  const updateTicketType = (key: number, field: keyof Omit<TicketTypeDraft, '_key'>, value: string | number) =>
+  const updateTicketType = (key: number, field: keyof Omit<TicketTypeDraft, '_key'>, value: any) =>
     setTicketTypes(prev => prev.map(tt => tt._key === key ? { ...tt, [field]: value } : tt));
 
   const removeTicketType = (key: number) =>
     setTicketTypes(prev => prev.filter(tt => tt._key !== key));
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: 'backgroundImage' | 'backgroundImageMobile') => {
     const file = e.target.files?.[0];
     if (!file) return;
     setIsUploading(true);
@@ -182,7 +274,7 @@ export default function Admin() {
       const data = await res.json();
 
       if (data.url) {
-        setDraft((d: any) => ({ ...d, theme: { ...d.theme, backgroundImage: data.url } }));
+        setDraft((d: any) => ({ ...d, theme: { ...d.theme, [field]: data.url } }));
       } else {
         alert('Error al subir la imagen: ' + (data.error || 'desconocido'));
       }
@@ -219,8 +311,8 @@ export default function Admin() {
             <div className="w-px h-4 bg-white/10" />
             <div className="flex items-center gap-2">
               <Settings className="w-4 h-4" style={{ color: t?.primaryColor || '#00ffcc' }} />
-              <select 
-                value={selectedEventId} 
+              <select
+                value={selectedEventId}
                 onChange={handleSelectChange}
                 className="bg-transparent border border-white/10 rounded px-2 py-1 text-sm font-semibold focus:outline-none focus:bg-black w-48 truncate"
               >
@@ -303,9 +395,9 @@ export default function Admin() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={labelClass}>Estado</label>
-                  <select 
-                    value={d.status || 'DRAFT'} 
-                    onChange={e => ev('status', e.target.value)} 
+                  <select
+                    value={d.status || 'DRAFT'}
+                    onChange={e => ev('status', e.target.value)}
                     className={inputClass}
                   >
                     <option value="DRAFT">Borrador (Oculto)</option>
@@ -321,12 +413,22 @@ export default function Admin() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={labelClass}>Fecha</label>
+                  <label className={labelClass}>Fecha <span className="normal-case text-white/20">(texto UI)</span></label>
                   <input type="text" value={d.date || ''} onChange={e => ev('date', e.target.value)} className={inputClass} placeholder="SÁB 15 NOV" />
                 </div>
                 <div>
                   <label className={labelClass}>Ubicación</label>
                   <input type="text" value={d.location || ''} onChange={e => ev('location', e.target.value)} className={inputClass} placeholder="Club Nostalgia, Madrid" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>Horario de inicio <span className="normal-case text-white/20">(hora real)</span></label>
+                  <input type="datetime-local" value={d.startsAt ? formatInTimeZone(new Date(d.startsAt), 'Europe/Lisbon', "yyyy-MM-dd'T'HH:mm") : ''} onChange={e => ev('startsAt', e.target.value)} className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>Horario de cierre <span className="normal-case text-white/20">(hora real)</span></label>
+                  <input type="datetime-local" value={d.endsAt ? formatInTimeZone(new Date(d.endsAt), 'Europe/Lisbon', "yyyy-MM-dd'T'HH:mm") : ''} onChange={e => ev('endsAt', e.target.value)} className={inputClass} />
                 </div>
               </div>
               <div>
@@ -369,27 +471,60 @@ export default function Admin() {
               </div>
             </div>
 
-            {/* Background image */}
+            {/* Background images */}
             <div className="bg-[#161616] border border-white/8 rounded-xl p-6 space-y-4">
               <p className="text-sm font-semibold text-white/60 pb-2 border-b border-white/6 flex items-center justify-between">
-                Imagen de Fondo <ImageIcon className="w-4 h-4 text-white/20" />
+                Imágenes de Fondo <ImageIcon className="w-4 h-4 text-white/20" />
               </p>
-              <div>
-                <label className={labelClass}>Subir desde el ordenador</label>
-                <label className={`flex items-center justify-center gap-3 w-full py-3 rounded-lg border-2 border-dashed cursor-pointer transition-colors ${isUploading ? 'opacity-50 cursor-wait' : 'border-white/10 hover:border-white/25'}`}>
-                  {isUploading
-                    ? <><Loader2 className="w-4 h-4 animate-spin text-white/40" /><span className="text-sm text-white/40">Subiendo...</span></>
-                    : <><ImageIcon className="w-4 h-4 text-white/30" /><span className="text-sm text-white/40">Haz clic para seleccionar</span><span className="text-xs text-white/20">(máx. 8 MB)</span></>
-                  }
-                  <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={isUploading} />
-                </label>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Desktop Background */}
+                <div>
+                  <label className={labelClass}>Desktop (PC)</label>
+                  <label className={`flex flex-col items-center justify-center gap-2 w-full py-6 rounded-lg border-2 border-dashed cursor-pointer transition-colors ${isUploading ? 'opacity-50 cursor-wait' : 'border-white/10 hover:border-white/25'}`}>
+                    {isUploading
+                      ? <><Loader2 className="w-4 h-4 animate-spin text-white/40" /><span className="text-sm text-white/40">Subiendo...</span></>
+                      : t.backgroundImage
+                        ? <><CheckCircle2 className="w-5 h-5 text-green-500" /><span className="text-xs text-white/50">Cambiar imagen</span></>
+                        : <><Plus className="w-5 h-5 text-white/20" /><span className="text-xs text-white/40">Subir imagen</span></>
+                    }
+                    <input type="file" className="hidden" accept="image/*" onChange={e => handleImageUpload(e, 'backgroundImage')} disabled={isUploading} />
+                  </label>
+                  {t.backgroundImage && (
+                    <div className="mt-2 relative group">
+                      <img src={t.backgroundImage} className="w-full h-20 object-cover rounded-lg border border-white/10" alt="Preview" />
+                      <button onClick={() => th('backgroundImage', '')} className="absolute top-1 right-1 p-1.5 bg-black/60 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Trash2 className="w-3 h-3 text-red-400" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Mobile Background */}
+                <div>
+                  <label className={labelClass}>Mobile (Móvil)</label>
+                  <label className={`flex flex-col items-center justify-center gap-2 w-full py-6 rounded-lg border-2 border-dashed cursor-pointer transition-colors ${isUploading ? 'opacity-50 cursor-wait' : 'border-white/10 hover:border-white/25'}`}>
+                    {isUploading
+                      ? <><Loader2 className="w-4 h-4 animate-spin text-white/40" /><span className="text-sm text-white/40">Subiendo...</span></>
+                      : t.backgroundImageMobile
+                        ? <><CheckCircle2 className="w-5 h-5 text-green-500" /><span className="text-xs text-white/50">Cambiar imagen</span></>
+                        : <><Plus className="w-5 h-5 text-white/20" /><span className="text-xs text-white/40">Subir imagen</span></>
+                    }
+                    <input type="file" className="hidden" accept="image/*" onChange={e => handleImageUpload(e, 'backgroundImageMobile')} disabled={isUploading} />
+                  </label>
+                  {t.backgroundImageMobile && (
+                    <div className="mt-2 relative group">
+                      <img src={t.backgroundImageMobile} className="w-full h-20 object-cover rounded-lg border border-white/10" alt="Preview Mobile" />
+                      <button onClick={() => th('backgroundImageMobile', '')} className="absolute top-1 right-1 p-1.5 bg-black/60 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Trash2 className="w-3 h-3 text-red-400" />
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
-              <div>
-                <label className={labelClass}>O pegar una URL externa</label>
-                <input type="text" value={t.backgroundImage || ''} onChange={e => th('backgroundImage', e.target.value)} className={inputClass} placeholder="https://images.unsplash.com/photo-..." />
-              </div>
+
               {/* Live preview */}
-              <div className="rounded-lg overflow-hidden h-32 relative">
+              <div className="rounded-lg overflow-hidden h-32 relative mt-4">
                 <div className="absolute inset-0" style={{ backgroundImage: `url(${t.backgroundImage})`, backgroundSize: 'cover', backgroundPosition: 'center', filter: 'brightness(0.45)' }} />
                 <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, transparent 40%, rgba(12,12,12,0.95) 100%)' }} />
                 <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: t.primaryColor }} />
@@ -447,15 +582,23 @@ export default function Admin() {
                         className="flex-1 bg-[#1a1a1a] border border-white/8 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white/25 transition-colors placeholder-white/20 font-medium"
                       />
                       <button
-                        onClick={() => removeTicketType(tt._key)}
+                        onClick={() => {
+                          if (tt.soldCount > 0) {
+                            if (window.confirm(`Ya han sido vendidas ${tt.soldCount} entradas de este tipo. Eliminarlo no eliminará estas entradas, solo lo ocultará de la tienda.`)) {
+                              removeTicketType(tt._key);
+                            }
+                          } else {
+                            removeTicketType(tt._key);
+                          }
+                        }}
                         className="text-white/20 hover:text-red-400 transition-colors p-2 rounded-lg hover:bg-red-400/8"
-                        title="Eliminar tipo (solo si no hay entradas vendidas)"
+                        title="Eliminar tipo"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
 
-                    {/* Row 2: Price + Stock */}
+                    {/* Row 2: Price + maxStock */}
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className={labelClass}>Precio (€)</label>
@@ -472,14 +615,14 @@ export default function Admin() {
                         </div>
                       </div>
                       <div>
-                        <label className={labelClass}>Límite de venta</label>
+                        <label className={labelClass}>Capacidad máxima</label>
                         <div className="relative">
                           <input
                             type="number"
                             min="0"
                             step="1"
-                            value={tt.stock}
-                            onChange={e => updateTicketType(tt._key, 'stock', parseInt(e.target.value) || 0)}
+                            value={tt.maxStock}
+                            onChange={e => updateTicketType(tt._key, 'maxStock', parseInt(e.target.value) || 0)}
                             className="w-full bg-[#1a1a1a] border border-white/8 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-white/25 transition-colors font-mono"
                           />
                           <span className="absolute right-3 top-1/2 -translate-y-1/2 text-white/20 text-xs">uds</span>
@@ -487,7 +630,28 @@ export default function Admin() {
                       </div>
                     </div>
 
+                    {/* Row 3: Sale window */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className={labelClass}>Inicio de venta</label>
+                        <input type="datetime-local" value={tt.saleStartsAt || ''} onChange={e => updateTicketType(tt._key, 'saleStartsAt', e.target.value)} className={inputClass} />
+                      </div>
+                      <div>
+                        <label className={labelClass}>Fin de venta</label>
+                        <input type="datetime-local" value={tt.saleEndsAt || ''} onChange={e => updateTicketType(tt._key, 'saleEndsAt', e.target.value)} className={inputClass} />
+                      </div>
+                    </div>
 
+                    {/* Row 4: Force sold out toggle */}
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={tt.forceSoldOut}
+                        onChange={e => updateTicketType(tt._key, 'forceSoldOut', e.target.checked)}
+                        className="w-4 h-4 rounded border-white/20 bg-[#1a1a1a] accent-red-500"
+                      />
+                      <span className="text-xs text-white/50">Forzar Agotado</span>
+                    </label>
 
                     {/* Summary chips */}
                     <div className="flex gap-2 flex-wrap">
@@ -496,8 +660,13 @@ export default function Admin() {
                         {tt.price > 0 ? `${tt.price.toFixed(2)}€` : 'Gratis'}
                       </span>
                       <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-white/5 text-white/40">
-                        {tt.stock > 0 ? `${tt.stock} disponibles` : 'Agotado'}
+                        Vendidas: {tt.soldCount} / {tt.maxStock}
                       </span>
+                      {(tt.forceSoldOut || (tt.soldCount >= tt.maxStock)) && (
+                        <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-red-500/15 text-red-400">
+                          Agotado
+                        </span>
+                      )}
                       {tt.id && (
                         <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-white/5 text-white/20">
                           id: {tt.id.slice(-6)}
@@ -563,9 +732,15 @@ export default function Admin() {
                   <span className="font-medium">{ticketTypes.length} tipos</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-white/40">Total disponible</span>
+                  <span className="text-white/40">Capacidad total</span>
                   <span className="font-medium" style={{ color: t.primaryColor }}>
-                    {ticketTypes.reduce((sum, tt) => sum + (tt.stock || 0), 0)} uds
+                    {ticketTypes.reduce((sum, tt) => sum + (tt.maxStock || 0), 0)} uds
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-white/40">Vendidas</span>
+                  <span className="font-medium text-white/70">
+                    {ticketTypes.reduce((sum, tt) => sum + (tt.soldCount || 0), 0)}
                   </span>
                 </div>
               </div>

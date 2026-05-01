@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatInTimeZone } from 'date-fns-tz';
 
 /**
  * Professional Ticket Card — 700 × 280 landscape (Dark Theme)
@@ -17,6 +18,8 @@ interface TicketData {
     tagline?: string;
     date: string;
     location: string;
+    startsAt?: string | null;
+    endsAt?: string | null;
   };
   theme: {
     primaryColor?: string;
@@ -123,6 +126,21 @@ export const generateTicketPDF = async (data: TicketData): Promise<Buffer> => {
                 React.createElement(Field, { label: 'Fecha', value: event.date }),
                 React.createElement(Field, { label: 'Lugar', value: event.location, wide: true }),
               ),
+              // Schedule row (startsAt / endsAt)
+              event.startsAt || event.endsAt ? React.createElement(
+                View,
+                { style: { flexDirection: 'row', marginBottom: 4 } },
+                React.createElement(Field, { 
+                  label: 'Horario', 
+                  value: [
+                    event.startsAt ? `Apertura: ${formatInTimeZone(new Date(event.startsAt), 'Europe/Lisbon', 'HH:mm')}` : '',
+                    event.endsAt ? `Cierre: ${formatInTimeZone(new Date(event.endsAt), 'Europe/Lisbon', 'HH:mm')}` : ''
+                  ].filter(Boolean).join(' — '),
+                  accent: true,
+                  accentColor: primary,
+                  wide: true
+                })
+              ) : null,
               React.createElement(Divider),
               React.createElement(
                 View,

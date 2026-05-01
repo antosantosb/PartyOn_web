@@ -6,6 +6,8 @@ export const defaultEventData = {
   partyName: "NOSTALGIA",
   tagline: "",
   date: "SÁBADO 15 NOVIEMBRE",
+  startsAt: null as string | null,
+  endsAt: null as string | null,
   location: "BRAGA",
   artistInfo: "DJ SANTOS",
   lineup: "",
@@ -13,7 +15,10 @@ export const defaultEventData = {
   logoText2: "ON",
   emailSubject: "Tu entrada para PartyOn",
   emailBody: "Gracias por tu compra. Te adjuntamos las entradas en este correo.",
-  ticketTypes: [] as { id: string; name: string; price: number; stock: number }[]
+  ticketTypes: [] as {
+    id: string; name: string; price: number; maxStock: number; soldCount: number;
+    saleStartsAt: string | null; saleEndsAt: string | null; forceSoldOut: boolean;
+  }[]
 };
 
 export const defaultTheme = {
@@ -28,7 +33,7 @@ import { API_BASE } from '../config/api';
 
 // Fields we cache in localStorage (no ticket/financial data)
 const CACHE_KEYS = [
-  'id', 'partyName', 'tagline', 'date', 'location',
+  'id', 'partyName', 'tagline', 'date', 'startsAt', 'endsAt', 'location',
   'artistInfo', 'lineup', 'logoText1', 'logoText2', 'emailSubject', 'emailBody', 'ticketTypes'
 ] as const;
 
@@ -84,7 +89,7 @@ export function useStore() {
         setLoading(false);
       })
       .catch(e => {
-        console.error('API unavailable — using local cache. Ticket stock may be stale.', e);
+        console.error('API unavailable — using local cache. Ticket availability may be stale.', e);
         setLoading(false);
       });
   }, []);
@@ -104,6 +109,8 @@ export function useStore() {
           partyName: newData.partyName,
           tagline: newData.tagline ?? null,
           date: newData.date,
+          startsAt: newData.startsAt ?? null,
+          endsAt: newData.endsAt ?? null,
           location: newData.location,
           artistInfo: newData.artistInfo,
           lineup: newData.lineup ?? null,
@@ -131,6 +138,8 @@ export function useStore() {
           partyName: eventRef.current.partyName,
           tagline: eventRef.current.tagline ?? null,
           date: eventRef.current.date,
+          startsAt: eventRef.current.startsAt ?? null,
+          endsAt: eventRef.current.endsAt ?? null,
           location: eventRef.current.location,
           artistInfo: eventRef.current.artistInfo,
           lineup: eventRef.current.lineup ?? null,

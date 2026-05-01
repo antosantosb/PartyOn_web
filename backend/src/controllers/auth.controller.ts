@@ -25,7 +25,7 @@ export const login = async (req: Request, res: Response) => {
 
     if (!user) {
       await prisma.auditLog.create({
-        data: { severity: 'WARNING', action: 'FAILED_LOGIN_ATTEMPT', details: `Attempted email: ${email}` }
+        data: { severity: 'WARNING', action: 'FAILED_LOGIN_ATTEMPT', details: `Attempted email: ${email}`, userId: null }
       });
       return res.status(401).json({ error: 'Credenciales inválidas' });
     }
@@ -34,14 +34,14 @@ export const login = async (req: Request, res: Response) => {
 
     if (!isValid) {
       await prisma.auditLog.create({
-        data: { severity: 'WARNING', action: 'FAILED_LOGIN_ATTEMPT', details: `Attempted email: ${email}` }
+        data: { severity: 'WARNING', action: 'FAILED_LOGIN_ATTEMPT', details: `Attempted email: ${email}`, userId: user.id }
       });
       return res.status(401).json({ error: 'Credenciales inválidas' });
     }
 
     const token = jwt.sign(
       { userId: user.id, email: user.email, role: user.role },
-      JWT_SECRET,
+      JWT_SECRET as string,
       { expiresIn: '24h' }
     );
 

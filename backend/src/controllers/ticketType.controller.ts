@@ -1,11 +1,32 @@
 import { Request, Response } from 'express';
+import { Prisma } from '@prisma/client';
+import { fromZonedTime } from 'date-fns-tz';
 import { prisma } from '../index';
 
 interface TicketTypeInput {
   id?: string;
   name: string;
   price: number;
-  stock: number;
+  maxStock: number;
+  saleStartsAt?: string | null;
+  saleEndsAt?: string | null;
+  forceSoldOut?: boolean;
+}
+
+function parseDatetimeLocal(value?: string | null): Date | null {
+  if (!value || value.trim() === '') return null;
+  
+  try {
+    // The string from <input type="datetime-local"> is timezone-naive (YYYY-MM-DDTHH:mm).
+    // We explicitly treat it as Europe/Lisbon to get the correct UTC offset for the DB.
+    const date = fromZonedTime(value, 'Europe/Lisbon');
+    
+    if (isNaN(date.getTime())) return null;
+    return date;
+  } catch (err) {
+    console.error(`[parseDatetimeLocal] Failed to parse: ${value}`, err);
+    return null;
+  }
 }
 
 export const updateTicketTypes = async (req: Request, res: Response) => {
@@ -25,45 +46,51 @@ export const updateTicketTypes = async (req: Request, res: Response) => {
       const incomingIds: string[] = [];
 
       for (const tt of ticketTypes) {
-        const soldCount = tt.id ? await tx.ticket.count({
-          where: { ticketTypeId: tt.id, status: 'VALID' }
-        }) : 0;
-        
-        const safeStock = Math.max(Math.round(tt.stock), soldCount);
-        
         const record = await tx.ticketType.upsert({
           where: { id: tt.id || 'new-unsaved-type' },
           create: {
             eventId,
             name: tt.name.trim(),
             price: parseFloat(String(tt.price)),
-            stock: Math.max(0, Math.round(tt.stock))
+            maxStock: Math.max(0, Math.round(tt.maxStock)),
+            saleStartsAt: parseDatetimeLocal(tt.saleStartsAt),
+            saleEndsAt: parseDatetimeLocal(tt.saleEndsAt),
+            forceSoldOut: tt.forceSoldOut ?? false,
           },
           update: {
             name: tt.name.trim(),
             price: parseFloat(String(tt.price)),
-            stock: safeStock
+            maxStock: Math.max(0, Math.round(tt.maxStock)),
+            saleStartsAt: parseDatetimeLocal(tt.saleStartsAt),
+            saleEndsAt: parseDatetimeLocal(tt.saleEndsAt),
+            forceSoldOut: tt.forceSoldOut ?? false,
           }
         });
         updated.push(record);
         incomingIds.push(record.id);
       }
 
-      // Remove types that were deleted in the UI — only if they have zero sold tickets
+      // Handle deletions: types removed from the UI
       const existingTypes = await tx.ticketType.findMany({
-        where: { eventId },
+        where: { eventId, isArchived: false },
         select: { id: true }
       });
 
       for (const existing of existingTypes) {
         if (!incomingIds.includes(existing.id)) {
           const soldCount = await tx.ticket.count({
-            where: { ticketTypeId: existing.id, status: 'VALID' }
+            where: { ticketTypeId: existing.id }
           });
           if (soldCount === 0) {
+            // Hard delete — no tickets sold
             await tx.ticketType.delete({ where: { id: existing.id } });
+          } else {
+            // Soft delete — archive to preserve ticket references
+            await tx.ticketType.update({
+              where: { id: existing.id },
+              data: { isArchived: true }
+            });
           }
-          // If there are sold tickets, silently keep the type (can't orphan sold tickets)
         }
       }
 
@@ -71,8 +98,22 @@ export const updateTicketTypes = async (req: Request, res: Response) => {
     });
 
     res.json({ success: true, ticketTypes: result });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Error al actualizar los tipos de entrada' });
+  } catch (error: any) {
+    console.error("[updateTicketTypes] Error details:", error);
+
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      return res.status(400).json({
+        error: "Database error during ticket type update",
+        code: error.code,
+        message: error.message
+      });
+    }
+
+    const isDev = process.env.NODE_ENV !== 'production';
+    res.status(500).json({ 
+      error: 'Error al actualizar los tipos de entrada',
+      message: error.message,
+      stack: isDev ? error.stack : undefined
+    });
   }
 };

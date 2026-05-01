@@ -1,6 +1,6 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, ArrowRight, X, Loader2 } from 'lucide-react';
+import { MapPin, ArrowRight, X, Loader2, Clock } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../lib/store';
 import { StripeCheckout } from '../components/StripeCheckout';
@@ -17,7 +17,17 @@ export default function Customer() {
   const [buyerEmail, setBuyerEmail] = useState('');
 
   const selectedTicket = eventData?.ticketTypes.find(t => t.id === selectedTicketId) || eventData?.ticketTypes[0];
-  const isSoldOut = selectedTicket?.stock === 0;
+  const getTicketStatus = (t: any): { available: boolean; label: string } => {
+    if (t.forceSoldOut) return { available: false, label: 'Agotado' };
+    if (t.soldCount >= t.maxStock) return { available: false, label: 'Agotado' };
+    const now = new Date();
+    if (t.saleStartsAt && new Date(t.saleStartsAt) > now) return { available: false, label: 'Próximamente' };
+    if (t.saleEndsAt && new Date(t.saleEndsAt) < now) return { available: false, label: 'Venta Finalizada' };
+    return { available: true, label: '' };
+  };
+
+  const selectedStatus = selectedTicket ? getTicketStatus(selectedTicket) : { available: false, label: '' };
+  const isSoldOut = !selectedStatus.available;
   const lineup = (eventData?.lineup || '').split(',').map((s: string) => s.trim()).filter(Boolean);
 
   // Auto-select first ticket type when data loads OR when selection is invalid
@@ -65,11 +75,15 @@ export default function Customer() {
         {/* Background image with tight, editorial vignette — no glow */}
         <div className="absolute inset-0 z-0">
           <div
-            className="absolute inset-0"
+            className="block md:hidden absolute inset-0 bg-cover bg-center"
+            style={{
+              backgroundImage: `url(${theme.backgroundImageMobile || theme.backgroundImage})`,
+            }}
+          />
+          <div
+            className="hidden md:block absolute inset-0 bg-cover bg-center"
             style={{
               backgroundImage: `url(${theme.backgroundImage})`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center top',
             }}
           />
           {/* Clean gradient overlay — bottom-heavy, not color-tinted */}
@@ -138,6 +152,13 @@ export default function Customer() {
                 <MapPin className="w-3.5 h-3.5" />
                 {eventData.location}
               </span>
+              {eventData.startsAt && (
+                <span className="px-3 py-1.5 text-sm font-mono bg-white/8 border border-white/10 rounded-sm text-white/70 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5" />
+                  {new Date(eventData.startsAt).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Lisbon' })}
+                  {eventData.endsAt && ` — ${new Date(eventData.endsAt).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Lisbon' })}`}
+                </span>
+              )}
             </div>
 
             {/* Lineup tags */}
@@ -175,6 +196,8 @@ export default function Customer() {
               setSelectedTicketId={setSelectedTicketId}
               selectedTicket={selectedTicket}
               isSoldOut={isSoldOut}
+              selectedStatus={selectedStatus}
+              getTicketStatus={getTicketStatus}
               onContinue={() => setShowCheckout(true)}
             />
           </motion.div>
@@ -410,10 +433,12 @@ interface TicketStubProps {
   setSelectedTicketId: (id: string) => void;
   selectedTicket: any;
   isSoldOut: boolean;
+  selectedStatus: { available: boolean; label: string };
+  getTicketStatus: (t: any) => { available: boolean; label: string };
   onContinue: () => void;
 }
 
-function TicketStub({ eventData, theme, tickets, setTickets, selectedTicketId, setSelectedTicketId, selectedTicket, isSoldOut, onContinue }: TicketStubProps) {
+function TicketStub({ eventData, theme, tickets, setTickets, selectedTicketId, setSelectedTicketId, selectedTicket, isSoldOut, selectedStatus, getTicketStatus, onContinue }: TicketStubProps) {
   const total = (tickets * selectedTicket.price).toFixed(0);
 
   return (
@@ -456,11 +481,13 @@ function TicketStub({ eventData, theme, tickets, setTickets, selectedTicketId, s
 
         {/* Ticket type selector */}
         <div className="space-y-2">
-          {eventData.ticketTypes.map((t: any) => (
-            <button
-              key={t.id}
-              disabled={t.stock === 0}
-              onClick={() => { setSelectedTicketId(t.id); setTickets(() => 1); }}
+          {eventData.ticketTypes.map((t: any) => {
+            const status = getTicketStatus(t);
+            return (
+              <button
+                key={t.id}
+                disabled={!status.available}
+                onClick={() => { setSelectedTicketId(t.id); setTickets(() => 1); }}
               className="w-full flex items-center justify-between px-4 py-3 rounded-lg transition-all text-left disabled:opacity-35 disabled:cursor-not-allowed"
               style={{
                 backgroundColor: selectedTicketId === t.id ? `${theme.primaryColor}12` : 'rgba(255,255,255,0.03)',
@@ -477,9 +504,9 @@ function TicketStub({ eventData, theme, tickets, setTickets, selectedTicketId, s
                   )}
                 </div>
                 <span className="font-semibold text-sm">{t.name}</span>
-                {t.stock === 0 && (
+                {!status.available && (
                   <span className="text-[10px] uppercase font-mono tracking-wider text-red-400/70 border border-red-500/20 px-1.5 py-0.5 rounded">
-                    Agotado
+                    {status.label}
                   </span>
                 )}
               </div>
@@ -487,7 +514,7 @@ function TicketStub({ eventData, theme, tickets, setTickets, selectedTicketId, s
                 {Number(t.price) % 1 === 0 ? `${t.price}€` : `${Number(t.price).toFixed(2)}€`}
               </span>
             </button>
-          ))}
+          )})}
         </div>
 
         {/* Quantity */}
@@ -503,7 +530,7 @@ function TicketStub({ eventData, theme, tickets, setTickets, selectedTicketId, s
             </button>
             <span className="text-lg font-bold w-5 text-center">{tickets}</span>
             <button
-              disabled={isSoldOut || tickets >= Math.min(10, selectedTicket.stock)}
+              disabled={isSoldOut || tickets >= Math.min(10, selectedTicket.maxStock - selectedTicket.soldCount)}
               onClick={() => setTickets(t => Math.min(10, t + 1))}
               className="w-8 h-8 rounded-full border border-white/10 flex items-center justify-center text-lg font-light text-white/50 hover:text-white hover:border-white/30 transition-all disabled:opacity-25"
             >
@@ -519,7 +546,7 @@ function TicketStub({ eventData, theme, tickets, setTickets, selectedTicketId, s
           className="w-full py-3.5 rounded-lg font-semibold text-sm uppercase tracking-wider transition-all flex items-center justify-center gap-2 disabled:opacity-30 disabled:cursor-not-allowed hover:brightness-110 active:scale-[0.98]"
           style={{ backgroundColor: theme.primaryColor, color: '#000' }}
         >
-          {isSoldOut ? 'Agotado' : (
+          {isSoldOut ? (selectedStatus.label || 'No disponible') : (
             <>
               Comprar — {total}€
               <ArrowRight className="w-4 h-4" />

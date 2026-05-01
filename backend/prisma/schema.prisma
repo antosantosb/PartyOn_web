@@ -24,6 +24,9 @@ model User {
   role      String   @default("ADMIN") // ADMIN, STAFF
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  
+  auditLogs      AuditLog[]
+  scannedTickets Ticket[]   @relation("ScannedTickets")
 }
 
 model Event {
@@ -32,6 +35,8 @@ model Event {
   status      EventStatus @default(DRAFT)
   tagline     String?  // Subtítulo bajo el nombre del evento
   date        String   @default("SÁBADO 15 NOVIEMBRE")
+  startsAt    DateTime?
+  endsAt      DateTime?
   location    String   @default("BRAGA")
   artistInfo  String   @default("DJ SANTOS")
   lineup      String?  // Artistas separados por comas
@@ -46,6 +51,7 @@ model Event {
   theme       Theme?
   tickets     Ticket[]
   expenses    Expense[]
+  orders      Order[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -58,22 +64,41 @@ model Theme {
   
   primaryColor    String   @default("#00ffcc")
   secondaryColor  String   @default("#ff007f")
-  backgroundImage String?  
-  ticketTemplate  String?  
+  backgroundImage       String?  
+  backgroundImageMobile String?  
+  ticketTemplate        String?  
 
   updatedAt       DateTime @updatedAt
 }
 
 model TicketType {
-  id      String   @id @default(cuid())
-  eventId String
-  event   Event    @relation(fields: [eventId], references: [id])
+  id           String    @id @default(cuid())
+  eventId      String
+  event        Event     @relation(fields: [eventId], references: [id])
   
-  name    String
-  price   Float
-  stock   Int      @default(0)
+  name         String
+  price        Float
+  maxStock     Int       @default(0)
+  soldCount    Int       @default(0)
+  saleStartsAt DateTime?
+  saleEndsAt   DateTime?
+  forceSoldOut Boolean   @default(false)
+  isArchived   Boolean   @default(false)
 
   tickets Ticket[]
+}
+
+model Order {
+  id            String   @id @default(cuid())
+  eventId       String
+  event         Event    @relation(fields: [eventId], references: [id])
+  customerName  String
+  customerEmail String
+  totalPaid     Float
+  paymentIntent String?  @unique
+  status        String   @default("COMPLETED")
+  createdAt     DateTime @default(now())
+  tickets       Ticket[]
 }
 
 model Ticket {
@@ -83,11 +108,19 @@ model Ticket {
   ticketTypeId  String
   ticketType    TicketType @relation(fields: [ticketTypeId], references: [id])
   
+  orderId       String?
+  order         Order?     @relation(fields: [orderId], references: [id])
+  
   email         String
   name          String
   status        String     @default("VALID") // VALID, USED, CANCELLED
   paymentIntent String?
   pricePaid     Float      @default(0)
+  
+  scannedAt     DateTime?
+  scannedById   String?
+  scannedBy     User?      @relation("ScannedTickets", fields: [scannedById], references: [id])
+  
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 }
@@ -105,6 +138,8 @@ model Expense {
 
 model AuditLog {
   id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
   severity  String   @default("INFO")
   action    String
   details   String?  @db.Text

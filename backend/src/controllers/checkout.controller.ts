@@ -55,8 +55,12 @@ export const createPaymentIntent = async (req: Request, res: Response) => {
     const ticketType = await prisma.ticketType.findUnique({ where: { id: ticketId } });
     if (!ticketType) return res.status(404).json({ error: 'Tipo de entrada no encontrado' });
 
-    // Soft stock check — full atomic check happens in processCheckout transaction
-    if (ticketType.stock < quantity) {
+    // Soft availability check — full atomic check happens in processCheckout transaction
+    if (ticketType.forceSoldOut || ticketType.isArchived) {
+      return res.status(400).json({ error: 'Este tipo de entrada no está disponible' });
+    }
+    const remaining = ticketType.maxStock - ticketType.soldCount;
+    if (remaining < quantity) {
       return res.status(400).json({ error: 'Stock insuficiente' });
     }
 
@@ -103,7 +107,12 @@ export const createPaymentIntent = async (req: Request, res: Response) => {
     });
     
     await prisma.auditLog.create({
-      data: { severity: 'CRITICAL', action: 'EXTERNAL_API_ERROR', details: `Message: ${error?.message || 'Unknown Stripe Error'}` }
+      data: { 
+        severity: 'CRITICAL', 
+        action: 'EXTERNAL_API_ERROR', 
+        details: `Message: ${error?.message || 'Unknown Stripe Error'}`,
+        userId: (req as any).user?.userId
+      }
     });
 
     res.status(500).json({ error: 'No se pudo crear el pago' });
@@ -151,7 +160,12 @@ export const processCheckout = async (req: Request, res: Response) => {
       });
 
       await prisma.auditLog.create({
-        data: { severity: 'CRITICAL', action: 'EXTERNAL_API_ERROR', details: `Message: ${error?.message || 'Unknown Stripe Error'}` }
+        data: { 
+          severity: 'CRITICAL', 
+          action: 'EXTERNAL_API_ERROR', 
+          details: `Message: ${error?.message || 'Unknown Stripe Error'}`,
+          userId: (req as any).user?.userId
+        }
       });
       return res.status(400).json({ error: 'No se pudo verificar el pago con Stripe' });
     }
@@ -166,33 +180,52 @@ export const processCheckout = async (req: Request, res: Response) => {
      * `prisma.$transaction` ensures these operations are atomic: they all
      * succeed together or all fail together (ACID guarantee).
      */
-    const tickets = await prisma.$transaction(async (tx) => {
+    const { tickets, order } = await prisma.$transaction(async (tx) => {
       // Re-fetch inside the transaction for a fresh, locked view of stock
       const ticketType = await tx.ticketType.findUnique({ where: { id: ticketId } });
 
       if (!ticketType) throw new Error('Tipo de entrada no encontrado');
 
-      // Final authoritative stock check (inside the transaction)
-      if (ticketType.stock < quantity) throw new Error('Stock insuficiente');
+      // Final authoritative availability check (inside the transaction)
+      if (ticketType.forceSoldOut || ticketType.isArchived) {
+        throw new Error('Este tipo de entrada no está disponible');
+      }
+      const remaining = ticketType.maxStock - ticketType.soldCount;
+      if (remaining < quantity) {
+        throw new Error('Stock insuficiente');
+      }
 
-      // Atomically subtract the purchased quantity from stock
+      // Atomically increment sold count
       await tx.ticketType.update({
         where: { id: ticketId },
-        data: { stock: { decrement: quantity } }
+        data: { 
+          soldCount: { increment: quantity }
+        }
       });
 
-      // Create one Ticket row per seat purchased (not one row for quantity=N)
-      // This allows individual QR codes per ticket in Phase 2
+      // Create the Order record
+      const order = await tx.order.create({
+        data: {
+          eventId: ticketType.eventId,
+          customerName: buyerName,
+          customerEmail: buyerEmail,
+          totalPaid: ticketType.price * quantity,
+          paymentIntent: paymentIntentId ?? null,
+          status: 'COMPLETED'
+        }
+      });
+
+      // Create one Ticket row per seat purchased
       const created = [];
       for (let i = 0; i < quantity; i++) {
         const ticket = await tx.ticket.create({
           data: {
             eventId: ticketType.eventId,
             ticketTypeId: ticketId,
+            orderId: order.id,
             name: buyerName,
             email: buyerEmail,
             status: 'VALID',
-            // Store the Stripe PaymentIntent ID for reconciliation / refunds
             paymentIntent: paymentIntentId ?? null,
             pricePaid: ticketType.price,
           }
@@ -200,11 +233,13 @@ export const processCheckout = async (req: Request, res: Response) => {
         created.push(ticket);
       }
 
-      return created;
+      return { tickets: created, order };
     });
+
     res.json({
       success: true,
       message: 'Entradas generadas con éxito',
+      orderId: order.id,
       tickets,
     });
 
@@ -257,6 +292,8 @@ export const processCheckout = async (req: Request, res: Response) => {
                 tagline: event.tagline ?? undefined,
                 date: event.date,
                 location: event.location,
+                startsAt: event.startsAt?.toISOString() ?? null,
+                endsAt: event.endsAt?.toISOString() ?? null,
               },
               theme: {
                 primaryColor: theme.primaryColor ?? undefined,
@@ -298,7 +335,7 @@ export const processCheckout = async (req: Request, res: Response) => {
 
   } catch (error: any) {
     // Surface domain errors (stock, not found) as 400 instead of 500
-    if (['Stock insuficiente', 'Tipo de entrada no encontrado'].includes(error.message)) {
+    if (['Stock insuficiente', 'Tipo de entrada no encontrado', 'Este tipo de entrada no está disponible'].includes(error.message)) {
       return res.status(400).json({ error: error.message });
     }
     console.error('[processCheckout] DB error:', error);
