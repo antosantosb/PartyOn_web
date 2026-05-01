@@ -315,3 +315,55 @@ export const validateTicket = async (req: Request, res: Response) => {
     res.status(500).json({ error: "Failed to validate ticket" });
   }
 };
+
+export const getEventAnalytics = async (req: Request, res: Response) => {
+  try {
+    const { eventId } = req.params;
+    if (!eventId) return res.status(400).json({ error: "Missing event ID" });
+
+    const event = await prisma.event.findUnique({
+      where: { id: eventId as string },
+      include: {
+        tickets: {
+          where: { status: { not: 'CANCELLED' } }
+        },
+        expenses: {
+          orderBy: { createdAt: 'desc' }
+        },
+        ticketTypes: {
+          where: { isArchived: false }
+        }
+      }
+    });
+
+    if (!event) return res.status(404).json({ error: "Event not found" });
+
+    // 1. Revenue: Sum of pricePaid from non-cancelled tickets
+    const totalRevenue = (event as any).tickets.reduce((sum: number, t: any) => sum + (t.pricePaid || 0), 0);
+
+    // 2. Expenses: Sum of amount from all Expense records
+    const totalExpenses = (event as any).expenses.reduce((sum: number, e: any) => sum + (e.amount || 0), 0);
+
+    // 3. Net Profit
+    const netProfit = totalRevenue - totalExpenses;
+
+    // 4. Ticket Sales Progress
+    const ticketsSold = (event as any).tickets.length;
+    const totalCapacity = (event as any).ticketTypes.reduce((sum: number, tt: any) => sum + (tt.maxStock || 0), 0);
+
+    res.json({
+      success: true,
+      analytics: {
+        totalRevenue,
+        totalExpenses,
+        netProfit,
+        ticketsSold,
+        totalCapacity,
+        expenses: (event as any).expenses
+      }
+    });
+  } catch (error) {
+    console.error("[getEventAnalytics] Error:", error);
+    res.status(500).json({ error: "Failed to fetch analytics" });
+  }
+};

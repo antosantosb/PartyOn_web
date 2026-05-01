@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getStoreData, updateStoreData, validateTicket, getAllEvents, createEvent, deleteEvent } from '../controllers/admin.controller';
+import { getStoreData, updateStoreData, validateTicket, getAllEvents, createEvent, deleteEvent, getEventAnalytics } from '../controllers/admin.controller';
 import { createPaymentIntent, processCheckout } from '../controllers/checkout.controller';
 import { updateTicketTypes } from '../controllers/ticketType.controller';
 import { login } from '../controllers/auth.controller';
@@ -24,6 +24,7 @@ router.get('/admin/events', authMiddleware, getAllEvents);
 router.post('/admin/events', authMiddleware, createEvent);
 router.delete('/admin/events/:id', authMiddleware, deleteEvent);
 router.post('/admin/tickets/validate', authMiddleware, validateTicket);
+router.get('/admin/management/analytics/:eventId', authMiddleware, getEventAnalytics);
 
 // Dev / God Mode routes
 router.get('/admin/dev/database-stats', authMiddleware, getDatabaseStats);
