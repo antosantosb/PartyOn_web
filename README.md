@@ -1,84 +1,89 @@
-# PartyOn — Plataforma de Venta de Entradas
+# 🚀 PartyOn — Event ERP & Ticketing Platform
 
-🎉 **PartyOn** es una solución personalizada y autogestionada para la venta de entradas de eventos (especialmente fiestas latinas). Permite al organizador tener control total sobre la estética de la web, gestionar tipos de entradas y procesar ventas sin comisiones de terceros.
+🎉 **PartyOn** is a professional, self-hosted end-to-end solution for event management and ticket sales. Designed for event promoters who demand total aesthetic control and real-time financial intelligence without third-party commissions.
 
-## 🏗️ Arquitectura del Sistema
+---
 
-El proyecto está dividido en tres capas principales corriendo en contenedores Docker:
+## 🏗️ System Architecture
+
+The project is a containerized full-stack application built for maximum reliability and ease of deployment.
 
 ```mermaid
 graph TD
-    User([Usuario Final]) <--> Frontend[Frontend - React/Vite]
-    Admin([Organizador]) <--> Frontend
-    Frontend <--> API[Backend - Express API]
+    User([Customer]) <--> Storefront[Storefront - React/Vite]
+    Admin([Promoter]) <--> AdminPanel[Admin Dashboard - React/Vite]
+    Storefront <--> API[Backend - Express API]
+    AdminPanel <--> API
     API <--> DB[(PostgreSQL Database)]
     API --- Prisma[Prisma ORM]
+    API --- Services[PDF / QR / Email Services]
 ```
 
-## ✅ Estado Actual (Hitos Alcanzados)
+---
 
-### 1. **Frontend (Cliente & Backoffice)**
-- **Rediseño Premium:** Interfaz inspirada en plataformas como DICE/Resident Advisor con tipografía *Space Grotesk*.
-- **Checkout Responsivo:** Optimización de contenedores para asegurar que la pasarela de pagos sea scrollable y funcional en todos los dispositivos móviles (Fix de desbordamiento).
-- **Backoffice Dinámico:** Panel administrativo para gestionar textos, colores y fondos en tiempo real.
-- **Sincronización Global:** Implementación de **Zustand** para reflejo instantáneo de cambios.
-- **Localización Completa:** Plataforma totalmente en **Español**.
+## ✅ Current Milestones (Operational MVP)
 
-### 2. **Pasarela de Pagos (Stripe)**
-- **Arquitectura de Singleton:** Centralización del cliente Stripe en el backend para evitar errores de conexión y mejorar el rendimiento.
-- **Validación de Datos en Caliente:** Integración de `payment_method_data` para sincronizar los datos del comprador con Stripe Elements de forma segura.
-- **Modo de Prueba:** Flujo completo habilitado con advertencias inteligentes sobre la configuración de llaves.
+### 1. **Management & Financial Intelligence**
+- **Management Dashboard**: Real-time analytics showing **Total Revenue**, **Operational Expenses**, and **Net Profit**.
+- **Occupancy Tracking**: Visual progress bars monitoring ticket sales vs. venue capacity.
+- **Expense Registry**: Detailed breakdown of costs (Venue, DJ, Security, etc.) for accurate ROI tracking.
 
-### 3. **Generación de Entradas & Envío (PDF/QR)**
-- **Diseño "Club-Pass" v3:** Generación automática de tarjetas PDF profesionales con estética de club nocturno, fuentes monoespaciadas y barras de metadatos.
-- **Códigos QR Dinámicos:** Integración de códigos QR únicos por entrada que codifican el `ticketId` para validación futura.
-- **Consolidación de Entrega:** Sistema inteligente que agrupa todas las entradas de una compra en **un único correo profesional** con múltiples adjuntos, en lugar de spam individual.
-- **Integración con Resend:** Flujo de entrega robusto con soporte para Markdown y plantillas HTML limpias.
+### 2. **Admin Backoffice (Configuration)**
+- **Aesthetic Engine**: Real-time control over brand colors, typography, and logos.
+- **Responsive Backgrounds**: Ability to upload separate background assets for Desktop and Mobile views.
+- **Event Lifecycle**: Manage event status (Draft, Active, Completed, Archived) with safety interlocks for live events.
+- **Stability**: Implementation of defensive programming in the save handlers to prevent UI crashes and ensure data integrity.
 
-### 4. **Backend (API & Persistencia)**
-- **Docker-Compose Inject:** Sincronización automática de secretos entre el host y los contenedores mediante sustitución de variables.
-- **Base de Datos Robusta:** PostgreSQL gestionado con Prisma para seguridad transaccional total.
+### 3. **Validation & Security**
+- **QR Scanner**: Mobile-optimized scanner for door staff to validate tickets in real-time.
+- **Audit Logs**: Comprehensive system logs tracking scans, sales, and administrative changes.
+- **RBAC Ready**: Authentication middleware integrated to handle Admin and Staff roles.
+
+### 4. **Customer Experience & Checkout**
+- **Premium Storefront**: High-end UX inspired by modern ticketing platforms (DICE, RA).
+- **Stripe Integration**: Secure 2-step checkout using Stripe Elements and PaymentIntents.
+- **Smart Delivery**: Grouped PDF ticket delivery via Resend (one email per order, multiple attachments).
+- **Professional PDFs**: "Club-Pass" v3 templates with unique QR codes and event metadata.
 
 ---
 
-## 🛠️ Tecnologías Utilizadas
+## 🛠️ Technology Stack
 
-- **Frontend:** React 19 + Vite + Tailwind CSS v4 + Framer Motion + Zustand.
-- **Backend:** Node.js + Express 5 + TypeScript.
-- **Email/PDF:** Resend API + React-PDF + QRCode.
-- **ORM:** Prisma v5.
-- **Infraestructura:** Docker + Docker Compose.
-- **Pagos:** Stripe API.
+- **Frontend**: React 19 + Vite + Tailwind CSS v4 + Framer Motion + Lucide Icons.
+- **Backend**: Node.js + Express + TypeScript.
+- **Database**: PostgreSQL + Prisma ORM v5.
+- **Services**: 
+  - **Stripe**: Payment processing.
+  - **Resend**: Transactional email delivery.
+  - **React-PDF**: Dynamic PDF generation.
+  - **Date-fns-tz**: Strict timezone management (Europe/Lisbon).
+- **Infrastructure**: Docker + Docker Compose.
 
 ---
 
-## 🚀 Cómo ejecutar el proyecto
+## 🚀 Getting Started
 
-1. **Clonar el repositorio.**
-2. **Configurar Variables de Entorno:**
-   - Crear un archivo `.env` en la **raíz** del proyecto con `STRIPE_SECRET_KEY` y `RESEND_API_KEY`.
-   - El sistema inyectará automáticamente estas llaves en el contenedor del backend.
-3. **Levantar los contenedores:**
+1. **Clone the repository.**
+2. **Setup Environment**:
+   - Create a `.env` file in the root with `STRIPE_SECRET_KEY`, `RESEND_API_KEY`, and `DATABASE_URL`.
+3. **Launch Containers**:
    ```bash
    docker-compose up -d --build
    ```
-4. **Acceder a las aplicaciones:**
-   - **Tienda (Cliente):** `http://localhost:5173`.
-   - **Backoffice (Admin):** `http://localhost:3000/admin`.
-   - **API Backend:** `http://localhost:3000`.
+4. **Access Points**:
+   - **Storefront**: `http://localhost:5173`
+   - **Admin Panel**: `http://localhost:5173/admin`
+   - **Database Studio**: `npx prisma studio` (inside /backend)
 
 ---
 
-## 🔜 Próximos Pasos (Roadmap)
+## 🔜 Roadmap & Future Development
 
-| Fase | Tarea | Descripción |
-| :--- | :--- | :--- |
-| **Fase 1: Validación** | 📱 Validador QR | Desarrollo de la página de escaneo para el personal de puerta (validación en tiempo real). |
-| **Fase 2: Logs & Ops** | 📊 Ops Dashboard | Panel para ver logs del sistema en tiempo real y feed de ventas en vivo. |
-| **Fase 3: Seguridad** | 🔐 Admin Auth | Añadir login seguro al Backoffice (Middleware de autenticación). |
-| **Fase 4: Análisis** | 📊 Análisis | Gráficos de ventas y métricas de asistencia. |
+We are currently pausing development to focus on a standalone Gamification MVP. All pending technical tasks, including **"Door Sale" logic**, **User Management UI**, and **Advanced RBAC**, are documented in:
+
+👉 **[PROJECT_BACKLOG.md](./PROJECT_BACKLOG.md)**
 
 ---
 
 > [!TIP]
-> **Nota de Desarrollo:** Para ver los cambios del Backoffice reflejados en la tienda, asegúrate de hacer clic en **"Guardar Cambios"**. La base de datos se actualizará y la tienda sincronizará la nueva configuración automáticamente.
+> **Timezone Note**: This platform is strictly configured for the **Europe/Lisbon** timezone. Ensure your server time or environment variables are synced to avoid 1-hour shifts in event start/end times.
