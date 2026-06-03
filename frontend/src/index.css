@@ -1,10 +1,185 @@
 @import "tailwindcss";
 
+/* ─── THEME TOKENS ────────────────────────────────────── */
 @theme {
-  --font-sans: "Space Grotesk", system-ui, sans-serif;
+  --font-sans: "Hanken Grotesk", "DM Sans", system-ui, sans-serif;
+  --font-display: "Anton", sans-serif;
+  --font-mono: "JetBrains Mono", "Courier New", monospace;
+
+  --color-accent: var(--color-accent, #e63329);
+  --color-accent-dim: var(--color-accent-dim, #b52820);
+  --color-bg: var(--bg, #111111);
+  --color-bg-alt: var(--bg-alt, #0d0d0d);
+  --color-surface: var(--surface, #191919);
+  --color-border: var(--border, #2a2a2a);
+  --color-text: var(--text, #f0ede8);
+  --color-text-muted: var(--text-muted, #7a7269);
+  --color-text-faint: var(--text-faint, #3a3530);
 }
+
+/* ─── CSS VARIABLES ───────────────────────────────────── */
+:root {
+  --accent:        #e63329;
+  --accent-dim:    #b52820;
+  --bg:            #111111;
+  --bg-alt:        #0d0d0d;
+  --surface:       #191919;
+  --border:        #2a2a2a;
+  --text:          #f0ede8;
+  --text-muted:    #7a7269;
+  --text-faint:    #3a3530;
+}
+
+/* ─── BASE ────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
 
 body {
   margin: 0;
   padding: 0;
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─── GRAIN OVERLAY ───────────────────────────────────── */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  opacity: 0.45;
+  mix-blend-mode: overlay;
+}
+
+/* ─── SCROLLBAR ───────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); }
+::-webkit-scrollbar-thumb:hover { background: #444; }
+
+/* ─── BRUTALIST UTILITIES ─────────────────────────────── */
+.brut-border {
+  border: 2px solid var(--border);
+}
+.brut-border-accent {
+  border: 2px solid var(--accent);
+}
+
+/* Primary button */
+.brut-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1.75rem;
+  background: var(--accent);
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  border: 2px solid var(--accent);
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  position: relative;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.brut-btn:hover:not(:disabled) {
+  transform: translate(-4px, -4px);
+  box-shadow: 4px 4px 0 0 #fff;
+}
+.brut-btn:active:not(:disabled) {
+  transform: translate(-1px, -1px);
+  box-shadow: 1px 1px 0 0 #fff;
+}
+.brut-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* Outline button */
+.brut-btn-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1.75rem;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  border: 2px solid var(--border);
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+  position: relative;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.brut-btn-outline:hover:not(:disabled) {
+  transform: translate(-4px, -4px);
+  box-shadow: 4px 4px 0 0 var(--accent);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.brut-btn-outline:active:not(:disabled) {
+  transform: translate(-1px, -1px);
+  box-shadow: 1px 1px 0 0 var(--accent);
+}
+.brut-btn-outline:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* ─── TICKER ANIMATION ────────────────────────────────── */
+@keyframes ticker-scroll {
+  0%   { transform: translate3d(0, 0, 0); }
+  100% { transform: translate3d(-50%, 0, 0); }
+}
+
+.animate-ticker {
+  display: flex;
+  width: max-content;
+  animation: ticker-scroll 30s linear infinite;
+}
+
+/* Slow speed for genre ticker */
+.animate-ticker-slow {
+  display: flex;
+  width: max-content;
+  animation: ticker-scroll 45s linear infinite;
+}
+
+/* ─── GALLERY GRID ────────────────────────────────────── */
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 3px;
+}
+
+@media (min-width: 768px) {
+  .gallery-grid {
+    grid-template-columns: repeat(12, 1fr);
+    grid-auto-rows: 260px;
+  }
+}
+
+/* ─── SECTION DIVIDER ─────────────────────────────────── */
+.section-label {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }

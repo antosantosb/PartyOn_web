@@ -2,23 +2,14 @@ import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { fromZonedTime } from 'date-fns-tz';
 import { prisma } from '../index';
+import { EventSchema } from '@partyon/schemas';
 
-/**
- * Parses a datetime-local string (e.g., "2024-11-15T23:00") assuming it represents
- * local time in Portugal (Europe/Lisbon) and converts it to a UTC Date object
- * for database storage.
- */
 function parseDatetimeLocal(value?: string | null): Date | null {
   if (!value || value.trim() === '') return null;
   
   try {
-    // We explicitly tell fromZonedTime that this string is in 'Europe/Lisbon' time.
-    // This handles Daylight Saving Time (DST) automatically.
     const date = fromZonedTime(value, 'Europe/Lisbon');
-    
-    // Check if the resulting date is valid
     if (isNaN(date.getTime())) return null;
-    
     return date;
   } catch (err) {
     console.error(`[parseDatetimeLocal] Failed to parse value: ${value}`, err);
@@ -29,38 +20,47 @@ function parseDatetimeLocal(value?: string | null): Date | null {
 export const getStoreData = async (req: Request, res: Response) => {
   try {
     let event = await prisma.event.findFirst({
-      where: { status: 'ACTIVE' },
+      where: { isPublished: true },
       include: { ticketTypes: { where: { isArchived: false } }, theme: true }
     });
 
     if (!event) {
-      // Seed default event on first run
-      event = await prisma.event.create({
-        data: {
-          name: "EL PERREO INTENSO",
-          status: "ACTIVE",
-          tagline: "La noche que no olvidarás",
-          date: "SÁBADO 15 NOVIEMBRE",
-          location: "BRAGA",
-          lineup: "DJ Álvaro, MC Regueton, La Reina Latina",
-          logoText1: "PARTY",
-          logoText2: "ON",
-          ticketTypes: {
-            create: [
-              { name: 'General', price: 15, maxStock: 150 },
-              { name: 'VIP', price: 30, maxStock: 0 }
-            ]
-          },
-          theme: {
-            create: {
-              primaryColor: "#00ffcc",
-              secondaryColor: "#ff007f",
-              backgroundImage: "/hero.jpg"
-            }
-          }
-        },
-        include: { ticketTypes: true, theme: true }
+      // Seed default event if none is published or exists
+      const existing = await prisma.event.findFirst({
+        include: { ticketTypes: { where: { isArchived: false } }, theme: true }
       });
+      
+      if (existing) {
+        event = existing;
+      } else {
+        event = await prisma.event.create({
+          data: {
+            name: "EL PERREO INTENSO",
+            isPublished: true,
+            tagline: "La noche que no olvidarás",
+            date: "SÁBADO 15 NOVIEMBRE",
+            location: "BRAGA",
+            lineup: "DJ Álvaro, MC Regueton, La Reina Latina",
+            logoText1: "PARTY",
+            logoText2: "",
+            ticketTypes: {
+              create: [
+                { name: 'General', price: 15, maxStock: 150 },
+                { name: 'VIP', price: 30, maxStock: 0 },
+                { name: 'Taquilla / En Puerta', price: 10, maxStock: 9999, isDoorType: true }
+              ]
+            },
+            theme: {
+              create: {
+                primaryColor: "#e63329",
+                secondaryColor: "",
+                backgroundImage: "/hero.jpg"
+              }
+            }
+          },
+          include: { ticketTypes: true, theme: true }
+        });
+      }
     }
 
     res.json({ eventData: event, theme: event.theme });
@@ -70,99 +70,152 @@ export const getStoreData = async (req: Request, res: Response) => {
   }
 };
 
-export const updateStoreData = async (req: Request, res: Response) => {
+export const getActiveEvent = async (req: Request, res: Response) => {
   try {
-    const { eventData, theme } = req.body;
-
-    if (!eventData?.id) {
-      return res.status(400).json({ error: "Missing event ID" });
-    }
-
-    // Enforce single ACTIVE event logic
-    if (eventData.status === 'ACTIVE') {
-      const activeEvent = await prisma.event.findFirst({
-        where: { status: 'ACTIVE', id: { not: eventData.id } }
-      });
-
-      if (activeEvent) {
-        if (!req.body.resolveConflict) {
-          return res.status(409).json({
-            error: "Conflict",
-            activeEventName: activeEvent.name,
-            activeEventId: activeEvent.id
-          });
-        } else {
-          // Transition the previous active event to COMPLETED
-          await prisma.event.update({
-            where: { id: activeEvent.id },
-            data: { status: 'COMPLETED' }
-          });
-        }
+    const event = await prisma.event.findFirst({
+      where: { isPublished: true },
+      include: { 
+        ticketTypes: { where: { isArchived: false } }, 
+        theme: true,
+        galleryImages: { orderBy: { order: 'asc' } }
       }
+    });
+    if (!event) {
+      // Return any first event if no active event is explicitly published
+      const fallback = await prisma.event.findFirst({
+        include: { 
+          ticketTypes: { where: { isArchived: false } }, 
+          theme: true,
+          galleryImages: { orderBy: { order: 'asc' } }
+        }
+      });
+      return res.json({ event: fallback || null });
+    }
+    res.json({ event });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to fetch active event" });
+  }
+};
+
+export const updateEvent = async (req: Request, res: Response) => {
+  const id = req.params.id as string;
+  
+  try {
+    const validation = EventSchema.safeParse(req.body);
+    if (!validation.success) {
+      return res.status(400).json({ error: "Datos inválidos", details: validation.error.format() });
     }
 
-    // Task 2: Fix the Silent Save Error (Backend Logging)
-    const parsedStartsAt = parseDatetimeLocal(eventData.startsAt);
-    const parsedEndsAt = parseDatetimeLocal(eventData.endsAt);
+    const data = validation.data;
+    const parsedStartsAt = data.startsAt ? parseDatetimeLocal(data.startsAt) : null;
+    const parsedEndsAt = data.endsAt ? parseDatetimeLocal(data.endsAt) : null;
 
-    console.log("Incoming Date Strings:", eventData.startsAt, eventData.endsAt);
-    console.log("Parsed UTC Dates:", parsedStartsAt?.toISOString(), parsedEndsAt?.toISOString());
+    // Enforce single active published event
+    if (data.isPublished) {
+      await prisma.event.updateMany({
+        where: { id: { not: id } },
+        data: { isPublished: false }
+      });
+    }
 
-    // Update event — including new tagline & lineup fields + UTC dates
-    await prisma.event.update({
-      where: { id: eventData.id },
+    const updated = await prisma.event.update({
+      where: { id },
       data: {
-        name: eventData.partyName || eventData.name,
-        status: eventData.status || undefined,
-        tagline: eventData.tagline ?? null,
-        date: eventData.date,
+        name: data.name,
+        isPublished: data.isPublished,
+        tagline: data.tagline,
+        date: data.date,
         startsAt: parsedStartsAt,
         endsAt: parsedEndsAt,
-        location: eventData.location,
-        artistInfo: eventData.artistInfo,
-        lineup: eventData.lineup ?? null,
-        logoText1: eventData.logoText1,
-        logoText2: eventData.logoText2,
-        emailSubject: eventData.emailSubject,
-        emailBody: eventData.emailBody,
+        location: data.location,
+        lineup: data.lineup,
+        tickerText: data.tickerText,
+        manifesto: data.manifesto,
+        manifestoLabel: data.manifestoLabel,
+        ctaLabel: data.ctaLabel,
+        logoText1: data.logoText1 || '',
+        logoText2: '',
+        emailSubject: data.emailSubject,
+        emailBody: data.emailBody,
+        showGallery: data.showGallery,
+        galleryTitle: data.galleryTitle,
+        showNewsletter: data.showNewsletter,
+        newsletterText: data.newsletterText,
+        newsletterSubtext: data.newsletterSubtext
       }
     });
 
-    // Update Theme
-    if (theme?.id) {
-      await prisma.theme.update({
-        where: { id: theme.id },
-        data: {
-          primaryColor: theme.primaryColor,
-          secondaryColor: theme.secondaryColor,
-          backgroundImage: theme.backgroundImage,
-          backgroundImageMobile: theme.backgroundImageMobile
-        }
-      });
-    }
-
-    res.json({ success: true });
+    res.json({ success: true, event: updated });
   } catch (error: any) {
-    console.error("[updateStoreData] Error details:", error);
+    console.error("[updateEvent] Error:", error);
+    res.status(500).json({ error: "Error al actualizar el evento" });
+  }
+};
 
-    // Task 1: Verbose Error Handling
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      // Return specific Prisma error info
-      return res.status(400).json({
-        error: "Database error during event update",
-        code: error.code,
-        message: error.message,
-        meta: error.meta
-      });
-    }
+export const updateEventTheme = async (req: Request, res: Response) => {
+  const id = req.params.id as string;
+  const { primaryColor, backgroundImage, backgroundImageMobile } = req.body;
 
-    // Generic or development-friendly error
-    const isDev = process.env.NODE_ENV !== 'production';
-    res.status(500).json({
-      error: "Error al guardar el evento",
-      message: error.message,
-      stack: isDev ? error.stack : undefined
+  try {
+    const theme = await prisma.theme.upsert({
+      where: { eventId: id },
+      create: {
+        eventId: id,
+        primaryColor: primaryColor || "#e63329",
+        secondaryColor: "",
+        backgroundImage: backgroundImage || "",
+        backgroundImageMobile: backgroundImageMobile || ""
+      },
+      update: {
+        primaryColor,
+        secondaryColor: "",
+        backgroundImage,
+        backgroundImageMobile
+      }
     });
+    res.json({ success: true, theme });
+  } catch (error) {
+    console.error("[updateEventTheme] Error:", error);
+    res.status(500).json({ error: "Error al actualizar el tema" });
+  }
+};
+
+export const updateEventGallery = async (req: Request, res: Response) => {
+  const id = req.params.id as string;
+  const { images } = req.body; // Array of { url, alt, order }
+
+  if (!Array.isArray(images)) {
+    return res.status(400).json({ error: "Imágenes inválidas" });
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Clear old gallery images
+      await tx.galleryImage.deleteMany({ where: { eventId: id } });
+      
+      // Insert new gallery images
+      if (images.length > 0) {
+        await tx.galleryImage.createMany({
+          data: images.map((img: any, index: number) => ({
+            eventId: id,
+            url: img.url,
+            alt: img.alt || "",
+            order: img.order !== undefined ? img.order : index
+          }))
+        });
+      }
+    });
+
+    const updatedImages = await prisma.galleryImage.findMany({
+      where: { eventId: id },
+      orderBy: { order: 'asc' }
+    });
+
+    res.json({ success: true, images: updatedImages });
+  } catch (error) {
+    console.error("[updateEventGallery] Error:", error);
+    res.status(500).json({ error: "Error al actualizar la galería" });
   }
 };
 
@@ -183,15 +236,20 @@ export const createEvent = async (req: Request, res: Response) => {
     const newEvent = await prisma.event.create({
       data: {
         name: "NUEVA FIESTA",
-        status: "DRAFT",
+        isPublished: false,
         date: "POR DEFINIR",
         location: "POR DEFINIR",
         logoText1: "NUEVA",
-        logoText2: "FIESTA",
+        logoText2: "",
+        ticketTypes: {
+          create: [
+            { name: 'Taquilla / En Puerta', price: 10, maxStock: 9999, isDoorType: true }
+          ]
+        },
         theme: {
           create: {
-            primaryColor: "#00ffcc",
-            secondaryColor: "#ff007f",
+            primaryColor: "#e63329",
+            secondaryColor: "",
             backgroundImage: "",
             backgroundImageMobile: ""
           }
@@ -217,16 +275,13 @@ export const deleteEvent = async (req: Request, res: Response) => {
 
     if (!event) return res.status(404).json({ error: "Event not found" });
 
-    if (event.status !== 'DRAFT') {
-      return res.status(400).json({ error: "Only DRAFT events can be deleted" });
-    }
-
     if (event.tickets.length > 0) {
       return res.status(400).json({ error: "Cannot delete an event with sold tickets" });
     }
 
     await prisma.$transaction([
       prisma.theme.deleteMany({ where: { eventId: id } }),
+      prisma.galleryImage.deleteMany({ where: { eventId: id } }),
       prisma.ticketType.deleteMany({ where: { eventId: id } }),
       prisma.expense.deleteMany({ where: { eventId: id } }),
       prisma.event.delete({ where: { id: id } })
@@ -281,7 +336,6 @@ export const validateTicket = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Esta entrada está CANCELADA" });
     }
 
-    // Update to USED with analytics
     const updated = await prisma.ticket.update({
       where: { id: ticketId },
       data: { 
@@ -338,18 +392,11 @@ export const getEventAnalytics = async (req: Request, res: Response) => {
 
     if (!event) return res.status(404).json({ error: "Event not found" });
 
-    // 1. Revenue: Sum of pricePaid from non-cancelled tickets
-    const totalRevenue = (event as any).tickets.reduce((sum: number, t: any) => sum + (t.pricePaid || 0), 0);
-
-    // 2. Expenses: Sum of amount from all Expense records
-    const totalExpenses = (event as any).expenses.reduce((sum: number, e: any) => sum + (e.amount || 0), 0);
-
-    // 3. Net Profit
+    const totalRevenue = event.tickets.reduce((sum: number, t: any) => sum + (t.pricePaid || 0), 0);
+    const totalExpenses = event.expenses.reduce((sum: number, e: any) => sum + (e.amount || 0), 0);
     const netProfit = totalRevenue - totalExpenses;
-
-    // 4. Ticket Sales Progress
-    const ticketsSold = (event as any).tickets.length;
-    const totalCapacity = (event as any).ticketTypes.reduce((sum: number, tt: any) => sum + (tt.maxStock || 0), 0);
+    const ticketsSold = event.tickets.length;
+    const totalCapacity = event.ticketTypes.reduce((sum: number, tt: any) => sum + (tt.maxStock || 0), 0);
 
     res.json({
       success: true,
@@ -359,11 +406,80 @@ export const getEventAnalytics = async (req: Request, res: Response) => {
         netProfit,
         ticketsSold,
         totalCapacity,
-        expenses: (event as any).expenses
+        expenses: event.expenses
       }
     });
   } catch (error) {
     console.error("[getEventAnalytics] Error:", error);
     res.status(500).json({ error: "Failed to fetch analytics" });
+  }
+};
+
+export const processWalkIn = async (req: Request, res: Response) => {
+  const { buyerName, buyerEmail, eventId, pricePaid } = req.body;
+  if (!buyerName || !buyerEmail || !eventId) {
+    return res.status(400).json({ error: "Datos incompletos" });
+  }
+
+  try {
+    const doorTicketType = await prisma.ticketType.findFirst({
+      where: { eventId, isDoorType: true }
+    });
+
+    if (!doorTicketType) {
+      return res.status(404).json({ error: "Tipo de entrada de puerta no encontrado." });
+    }
+
+    const { ticket, order } = await prisma.$transaction(async (tx) => {
+      await tx.ticketType.update({
+        where: { id: doorTicketType.id },
+        data: { soldCount: { increment: 1 } }
+      });
+
+      const order = await tx.order.create({
+        data: {
+          eventId,
+          customerName: buyerName,
+          customerEmail: buyerEmail,
+          totalPaid: pricePaid !== undefined ? parseFloat(String(pricePaid)) : doorTicketType.price,
+          status: 'COMPLETED'
+        }
+      });
+
+      const ticket = await tx.ticket.create({
+        data: {
+          eventId,
+          ticketTypeId: doorTicketType.id,
+          orderId: order.id,
+          name: buyerName,
+          email: buyerEmail,
+          status: 'USED', // Used immediately on door registration
+          pricePaid: pricePaid !== undefined ? parseFloat(String(pricePaid)) : doorTicketType.price,
+          scannedAt: new Date(),
+          scannedById: (req as any).user?.userId
+        }
+      });
+
+      return { ticket, order };
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        severity: 'INFO',
+        action: 'WALK_IN_SALE',
+        details: `Walk-in ticket registered for ${buyerName} (${buyerEmail}). Price paid: ${pricePaid !== undefined ? pricePaid : doorTicketType.price}`,
+        userId: (req as any).user?.userId
+      }
+    });
+
+    res.json({
+      success: true,
+      message: 'Venta en puerta registrada',
+      ticket,
+      order
+    });
+  } catch (err: any) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al registrar la venta en puerta' });
   }
 };

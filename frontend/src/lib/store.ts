@@ -1,45 +1,66 @@
 import { useState, useEffect, useRef } from 'react';
+import { API_BASE } from '../config/api';
+import { apiFetch } from './api-client';
 
-// UI-only fallback (no ticketTypes — always fetched live from the API)
 export const defaultEventData = {
   id: '',
-  partyName: "NOSTALGIA",
+  name: "EL PERREO INTENSO",
+  partyName: "EL PERREO INTENSO", // compatibility alias
+  isPublished: false,
   tagline: "",
   date: "SÁBADO 15 NOVIEMBRE",
   startsAt: null as string | null,
   endsAt: null as string | null,
   location: "BRAGA",
-  artistInfo: "DJ SANTOS",
   lineup: "",
+  tickerText: "",
+  manifesto: "",
+  manifestoLabel: "",
+  ctaLabel: "COMPRAR ENTRADA",
+  showGallery: false,
+  galleryTitle: "",
+  galleryImages: [] as { id: string; url: string; alt: string | null; order: number }[],
+  showNewsletter: false,
+  newsletterText: "",
+  newsletterSubtext: "",
   logoText1: "PARTY",
-  logoText2: "ON",
   emailSubject: "Tu entrada para PartyOn",
   emailBody: "Gracias por tu compra. Te adjuntamos las entradas en este correo.",
   ticketTypes: [] as {
-    id: string; name: string; price: number; maxStock: number; soldCount: number;
-    saleStartsAt: string | null; saleEndsAt: string | null; forceSoldOut: boolean;
+    id: string;
+    eventId: string;
+    name: string;
+    description: string | null;
+    price: number;
+    maxStock: number;
+    soldCount: number;
+    saleStartsAt: string | null;
+    saleEndsAt: string | null;
+    forceSoldOut: boolean;
+    isArchived: boolean;
+    isDoorType: boolean;
   }[]
 };
 
 export const defaultTheme = {
   id: '',
-  primaryColor: "#00ffcc",
-  secondaryColor: "#ff007f",
+  primaryColor: "#e63329",
   backgroundImage: "/hero.jpg",
+  backgroundImageMobile: ""
 };
 
-import { API_BASE } from '../config/api';
-
-
-// Fields we cache in localStorage (no ticket/financial data)
 const CACHE_KEYS = [
-  'id', 'partyName', 'tagline', 'date', 'startsAt', 'endsAt', 'location',
-  'artistInfo', 'lineup', 'logoText1', 'logoText2', 'emailSubject', 'emailBody', 'ticketTypes'
+  'id', 'name', 'partyName', 'tagline', 'date', 'startsAt', 'endsAt', 'location',
+  'lineup', 'tickerText', 'manifesto', 'manifestoLabel', 'ctaLabel', 'showGallery',
+  'galleryTitle', 'showNewsletter', 'newsletterText', 'newsletterSubtext',
+  'logoText1', 'emailSubject', 'emailBody', 'ticketTypes', 'galleryImages'
 ] as const;
 
 function pickCacheFields(data: any) {
   const out: any = {};
-  for (const k of CACHE_KEYS) if (k in data) out[k] = data[k];
+  for (const k of CACHE_KEYS) {
+    if (k in data) out[k] = data[k];
+  }
   return out;
 }
 
@@ -47,7 +68,7 @@ export function useStore() {
   const [eventData, setEventDataState] = useState<typeof defaultEventData>(() => {
     const saved = localStorage.getItem('partyon_event');
     const cached = saved ? JSON.parse(saved) : {};
-    return { ...defaultEventData, ...cached, ticketTypes: [] };
+    return { ...defaultEventData, ...cached, ticketTypes: [], galleryImages: [] };
   });
 
   const [theme, setThemeState] = useState<typeof defaultTheme>(() => {
@@ -57,34 +78,31 @@ export function useStore() {
 
   const [loading, setLoading] = useState(true);
 
-  // Always-current refs so async save functions never have stale values
   const eventRef = useRef(eventData);
   const themeRef = useRef(theme);
   useEffect(() => { eventRef.current = eventData; }, [eventData]);
   useEffect(() => { themeRef.current = theme; }, [theme]);
 
-  // Fetch fresh data from backend on mount — ticketTypes ONLY come from here
+  // Fetch active event
   useEffect(() => {
-    fetch(`${API_BASE}/store-data`)
+    fetch(`${API_BASE}/events/active`)
       .then(res => res.json())
       .then(data => {
-        if (data.eventData) {
-          // Preserve localStorage extras (tagline, lineup) that backend may not have yet
-          const cached = localStorage.getItem('partyon_event');
-          const localExtra = cached ? JSON.parse(cached) : {};
+        if (data.event) {
           const fresh: typeof defaultEventData = {
             ...defaultEventData,
-            ...localExtra,
-            ...data.eventData,
-            partyName: data.eventData.name,
-            ticketTypes: data.eventData.ticketTypes ?? []
+            ...data.event,
+            partyName: data.event.name, // compatibility
+            ticketTypes: data.event.ticketTypes ?? [],
+            galleryImages: data.event.galleryImages ?? []
           };
           setEventDataState(fresh);
           localStorage.setItem('partyon_event', JSON.stringify(pickCacheFields(fresh)));
-        }
-        if (data.theme) {
-          setThemeState(data.theme);
-          localStorage.setItem('partyon_theme', JSON.stringify(data.theme));
+
+          if (data.event.theme) {
+            setThemeState(data.event.theme);
+            localStorage.setItem('partyon_theme', JSON.stringify(data.event.theme));
+          }
         }
         setLoading(false);
       })
@@ -94,66 +112,51 @@ export function useStore() {
       });
   }, []);
 
-  // Save event data — update state + localStorage + backend (non-blocking on error)
   const saveEventData = async (newData: typeof defaultEventData) => {
     setEventDataState(newData);
     localStorage.setItem('partyon_event', JSON.stringify(pickCacheFields(newData)));
 
-    // Use themeRef so we always send the latest theme, not a stale closure
-    await fetch(`${API_BASE}/store-data`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    if (!newData.id) return;
+
+    await apiFetch(`/admin/events/${newData.id}`, {
+      method: 'PATCH',
       body: JSON.stringify({
-        eventData: {
-          id: newData.id,
-          partyName: newData.partyName,
-          tagline: newData.tagline ?? null,
-          date: newData.date,
-          startsAt: newData.startsAt ?? null,
-          endsAt: newData.endsAt ?? null,
-          location: newData.location,
-          artistInfo: newData.artistInfo,
-          lineup: newData.lineup ?? null,
-          logoText1: newData.logoText1,
-          logoText2: newData.logoText2,
-          emailSubject: newData.emailSubject,
-          emailBody: newData.emailBody,
-        },
-        theme: themeRef.current
+        name: newData.name || newData.partyName,
+        isPublished: newData.isPublished,
+        tagline: newData.tagline || null,
+        date: newData.date,
+        startsAt: newData.startsAt,
+        endsAt: newData.endsAt,
+        location: newData.location,
+        lineup: newData.lineup || null,
+        tickerText: newData.tickerText || null,
+        manifesto: newData.manifesto || null,
+        manifestoLabel: newData.manifestoLabel || null,
+        ctaLabel: newData.ctaLabel || 'COMPRAR ENTRADA',
+        logoText1: newData.logoText1,
+        emailSubject: newData.emailSubject,
+        emailBody: newData.emailBody,
+        showGallery: newData.showGallery,
+        galleryTitle: newData.galleryTitle || null,
+        showNewsletter: newData.showNewsletter,
+        newsletterText: newData.newsletterText || null,
+        newsletterSubtext: newData.newsletterSubtext || null
       })
-    }).catch(e => console.warn('API save failed (offline mode):', e));
+    }).catch(e => console.warn('API save failed:', e));
   };
 
-  // Save theme — use eventRef so we always send latest event data
   const saveTheme = async (newTheme: typeof defaultTheme) => {
     setThemeState(newTheme);
     localStorage.setItem('partyon_theme', JSON.stringify(newTheme));
 
-    await fetch(`${API_BASE}/store-data`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        eventData: {
-          id: eventRef.current.id,
-          partyName: eventRef.current.partyName,
-          tagline: eventRef.current.tagline ?? null,
-          date: eventRef.current.date,
-          startsAt: eventRef.current.startsAt ?? null,
-          endsAt: eventRef.current.endsAt ?? null,
-          location: eventRef.current.location,
-          artistInfo: eventRef.current.artistInfo,
-          lineup: eventRef.current.lineup ?? null,
-          logoText1: eventRef.current.logoText1,
-          logoText2: eventRef.current.logoText2,
-          emailSubject: eventRef.current.emailSubject,
-          emailBody: eventRef.current.emailBody,
-        },
-        theme: newTheme
-      })
-    }).catch(e => console.warn('API save failed (offline mode):', e));
+    if (!eventRef.current.id) return;
+
+    await apiFetch(`/admin/events/${eventRef.current.id}/theme`, {
+      method: 'PATCH',
+      body: JSON.stringify(newTheme)
+    }).catch(e => console.warn('API theme save failed:', e));
   };
 
-  // Cross-tab sync (non-ticket fields only)
   useEffect(() => {
     const handleStorage = (e: StorageEvent) => {
       if (e.key === 'partyon_event' && e.newValue) {

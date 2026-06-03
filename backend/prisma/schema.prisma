@@ -9,13 +9,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum EventStatus {
-  DRAFT
-  ACTIVE
-  COMPLETED
-  ARCHIVED
-}
-
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -30,16 +23,31 @@ model User {
 }
 
 model Event {
-  id          String      @id @default(cuid())
-  name        String      @default("PARTY ON EVENT")
-  status      EventStatus @default(DRAFT)
-  tagline     String?  // Subtítulo bajo el nombre del evento
-  date        String   @default("SÁBADO 15 NOVIEMBRE")
-  startsAt    DateTime?
-  endsAt      DateTime?
-  location    String   @default("BRAGA")
-  artistInfo  String   @default("DJ SANTOS")
-  lineup      String?  // Artistas separados por comas
+  id            String      @id @default(cuid())
+  name          String      @default("PARTY ON EVENT")
+  isPublished   Boolean     @default(false)
+  tagline       String?     // Subtítulo bajo el nombre del evento
+  date          String      @default("SÁBADO 15 NOVIEMBRE")
+  startsAt      DateTime?
+  endsAt        DateTime?
+  location      String      @default("BRAGA")
+  lineup        String?     // Artistas separados por comas
+
+  // Configurable content fields
+  tickerText        String?   // "REGGAETON • SALSA • MERENGUE • BACHATA"
+  manifesto         String?   @db.Text  // Frase grande en la sección roja
+  manifestoLabel    String?   // Etiqueta pequeña encima ("MANIFIESTO")
+  ctaLabel          String?   @default("COMPRAR ENTRADA") // Texto del botón principal
+
+  // Gallery Section
+  showGallery       Boolean   @default(false)
+  galleryTitle      String?   // "LO QUE FUE: NOSTALGIA"
+  galleryImages     GalleryImage[]
+
+  // Newsletter Section
+  showNewsletter    Boolean   @default(false)
+  newsletterText    String?   // "Únete al pulso"
+  newsletterSubtext String?   // Texto descriptivo bajo el título
 
   // Customization
   logoText1    String   @default("PARTY")
@@ -57,26 +65,37 @@ model Event {
   updatedAt   DateTime @updatedAt
 }
 
+model GalleryImage {
+  id        String   @id @default(cuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  url       String
+  alt       String?
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
 model Theme {
-  id              String   @id @default(cuid())
-  eventId         String   @unique
-  event           Event    @relation(fields: [eventId], references: [id])
+  id                    String   @id @default(cuid())
+  eventId               String   @unique
+  event                 Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   
-  primaryColor    String   @default("#00ffcc")
-  secondaryColor  String   @default("#ff007f")
+  primaryColor          String   @default("#e63329") // defaults to red
+  secondaryColor        String   @default("#ff007f")
   backgroundImage       String?  
   backgroundImageMobile String?  
   ticketTemplate        String?  
 
-  updatedAt       DateTime @updatedAt
+  updatedAt             DateTime @updatedAt
 }
 
 model TicketType {
   id           String    @id @default(cuid())
   eventId      String
-  event        Event     @relation(fields: [eventId], references: [id])
+  event        Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
   
   name         String
+  description  String?   // "Acceso general", "Zona VIP + 1 copa"
   price        Float
   maxStock     Int       @default(0)
   soldCount    Int       @default(0)
@@ -84,6 +103,7 @@ model TicketType {
   saleEndsAt   DateTime?
   forceSoldOut Boolean   @default(false)
   isArchived   Boolean   @default(false)
+  isDoorType   Boolean   @default(false) // Mandatory door ticket flag
 
   tickets Ticket[]
 }

@@ -46,5 +46,5 @@ export const stripe = new Stripe(secretKey, {
      * Stripe increments the API version independently of the npm package, so
      * pinning here prevents unexpected breaking changes after upgrading the SDK.
      */
-    apiVersion: '2026-03-25.dahlia',
+    apiVersion: '2026-03-25.dahlia' as any,
 });

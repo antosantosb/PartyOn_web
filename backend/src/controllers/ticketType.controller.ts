@@ -72,12 +72,14 @@ export const updateTicketTypes = async (req: Request, res: Response) => {
 
       // Handle deletions: types removed from the UI
       const existingTypes = await tx.ticketType.findMany({
-        where: { eventId, isArchived: false },
-        select: { id: true }
+        where: { eventId, isArchived: false }
       });
 
       for (const existing of existingTypes) {
         if (!incomingIds.includes(existing.id)) {
+          if (existing.isDoorType) {
+            throw new Error("O bilhete de porta é obrigatório e não pode ser eliminado.");
+          }
           const soldCount = await tx.ticket.count({
             where: { ticketTypeId: existing.id }
           });
@@ -100,6 +102,10 @@ export const updateTicketTypes = async (req: Request, res: Response) => {
     res.json({ success: true, ticketTypes: result });
   } catch (error: any) {
     console.error("[updateTicketTypes] Error details:", error);
+
+    if (error.message === "O bilhete de porta é obrigatório e não pode ser eliminado.") {
+      return res.status(403).json({ error: error.message });
+    }
 
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       return res.status(400).json({

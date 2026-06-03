@@ -1,0 +1,14 @@
+{
+  "name": "partyon",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "db:migrate": "npm run prisma migrate dev --workspace=backend"
+  }
+}
