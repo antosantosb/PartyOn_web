@@ -27,16 +27,10 @@ services:
     environment:
       - DATABASE_URL=postgresql://admin:adminpassword@db:5432/partyon?schema=public
       - PORT=3000
-      # ── Stripe ──────────────────────────────────────────────────────────────
-      # Docker Compose reads ${STRIPE_SECRET_KEY} from the host environment OR
-      # from a .env file placed next to docker-compose.yml (root of the project).
-      # NEVER hardcode the real secret key here — .env is gitignored.
-      # Test keys start with sk_test_  |  Live keys start with sk_live_
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
       - RESEND_API_KEY=${RESEND_API_KEY}
-      # ── Frontend origin (CORS) ───────────────────────────────────────────────
-      # Uncomment and set to your production domain before going live:
-      # - FRONTEND_URL=https://yourdomain.com
+      # ── Frontend origin (CORS) — set your production domain here ──────────
+      # - FRONTEND_URL=https://partyon.tudominio.com
     volumes:
       - uploads_data:/app/uploads
     depends_on:
@@ -45,6 +39,24 @@ services:
       sh -c "npx prisma db push --accept-data-loss && 
              npx prisma db seed && 
              node dist/index.js"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # VITE_* vars must be passed at BUILD time — Vite bakes them into the JS bundle
+        # Set these in your root .env file or export them in your shell before running
+        VITE_API_BASE: ${VITE_API_BASE:-http://localhost:3000/api}
+        VITE_STRIPE_PUBLIC_KEY: ${VITE_STRIPE_PUBLIC_KEY}
+    container_name: partyon_frontend
+    restart: always
+    ports:
+      # Port 80 is taken by the other project's Nginx.
+      # We expose on 8080 on the host so the Nginx proxy can reach us.
+      - "8080:80"
+    depends_on:
+      - backend
 
 volumes:
   db_data:
