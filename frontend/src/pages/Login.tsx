@@ -28,7 +28,12 @@ export default function Login() {
 
       if (res.ok && data.token) {
         localStorage.setItem('adminToken', data.token);
-        navigate('/admin/configuration');
+        localStorage.setItem('userRole', data.user.role);
+        if (data.user.role === 'STAFF') {
+          navigate('/admin/validation');
+        } else {
+          navigate('/admin/configuration');
+        }
       } else {
         setError(data.error || 'Login failed');
       }

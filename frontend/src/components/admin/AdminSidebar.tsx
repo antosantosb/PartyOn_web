@@ -5,13 +5,19 @@ import { useStore } from '../../lib/store';
 export default function AdminSidebar() {
   const store = useStore();
   const primaryColor = store.theme?.primaryColor || '#00ffcc';
+  const role = localStorage.getItem('userRole') || 'STAFF';
 
-  const navItems = [
-    { name: 'Configuración', path: '/admin/configuration', icon: Settings },
-    { name: 'Dev & Logs', path: '/admin/dev', icon: Terminal },
-    { name: 'Validación', path: '/admin/validation', icon: ScanLine },
-    { name: 'Gestión', path: '/admin/management', icon: BarChart3 },
-  ];
+  const navItems = [];
+  if (role === 'STAFF') {
+    navItems.push({ name: 'Validación', path: '/admin/validation', icon: ScanLine });
+  } else {
+    navItems.push({ name: 'Configuración', path: '/admin/configuration', icon: Settings });
+    if (role === 'DEV') {
+      navItems.push({ name: 'Dev & Logs', path: '/admin/dev', icon: Terminal });
+    }
+    navItems.push({ name: 'Validación', path: '/admin/validation', icon: ScanLine });
+    navItems.push({ name: 'Gestión', path: '/admin/management', icon: BarChart3 });
+  }
 
   return (
     <div className="hidden md:flex w-64 h-screen bg-[#0c0c0c] border-r border-white/8 flex-col fixed left-0 top-0">

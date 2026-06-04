@@ -20,3 +20,13 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction) 
     return res.status(401).json({ error: 'Token inválido o expirado.' });
   }
 };
+
+export const authorize = (allowedRoles: string[]) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const user = (req as any).user;
+    if (!user || !user.role || !allowedRoles.includes(user.role)) {
+      return res.status(403).json({ error: 'Acceso denegado. Permisos insuficientes.' });
+    }
+    next();
+  };
+};

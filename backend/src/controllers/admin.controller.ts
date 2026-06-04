@@ -416,7 +416,7 @@ export const getEventAnalytics = async (req: Request, res: Response) => {
 };
 
 export const processWalkIn = async (req: Request, res: Response) => {
-  const { buyerName, buyerEmail, eventId, pricePaid } = req.body;
+  const { buyerName, buyerEmail, eventId, pricePaid, paymentMethod } = req.body;
   if (!buyerName || !buyerEmail || !eventId) {
     return res.status(400).json({ error: "Datos incompletos" });
   }
@@ -442,6 +442,7 @@ export const processWalkIn = async (req: Request, res: Response) => {
           customerName: buyerName,
           customerEmail: buyerEmail,
           totalPaid: pricePaid !== undefined ? parseFloat(String(pricePaid)) : doorTicketType.price,
+          paymentIntent: `${paymentMethod || 'DOOR'}_${Date.now()}`,
           status: 'COMPLETED'
         }
       });

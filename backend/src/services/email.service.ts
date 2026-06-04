@@ -43,6 +43,11 @@ interface SendTicketEmailParams {
 export const sendTicketEmail = async (params: SendTicketEmailParams) => {
   const { to, subject, bodyMarkdown, eventName, tickets } = params;
 
+  if (to.toLowerCase() === 'taquilla@partyon.pt') {
+    console.log('[sendTicketEmail] 🚪 Bypassing email delivery for taquilla fallback address.');
+    return { success: true, messageId: 'bypassed_door' };
+  }
+
   try {
     // 1. Parse Markdown to HTML for the email content
     const { marked } = await import('marked');

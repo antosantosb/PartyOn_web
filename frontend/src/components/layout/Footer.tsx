@@ -18,24 +18,24 @@ export function Footer({ logoUrl }: { logoUrl?: string }) {
         </div>
 
         {/* Social / Support Links - In bordered boxes */}
-        <div className="flex flex-wrap items-center justify-center gap-2">
+        <div className="grid grid-cols-3 md:flex items-center justify-center gap-2 w-full md:w-auto">
           <a
             href="https://www.instagram.com/party.on.pt"
             target="_blank"
             rel="noopener noreferrer"
-            className="font-mono text-[10px] uppercase tracking-widest text-text-muted hover:text-accent hover:border-accent border border-border px-4 py-2 transition-colors"
+            className="font-mono text-[10px] uppercase tracking-widest text-text-muted hover:text-accent hover:border-accent border border-border px-2.5 py-2.5 transition-colors text-center block"
           >
             Instagram
           </a>
           <a
             href="#"
-            className="font-mono text-[10px] uppercase tracking-widest text-text-muted hover:text-accent hover:border-accent border border-border px-4 py-2 transition-colors"
+            className="font-mono text-[10px] uppercase tracking-widest text-text-muted hover:text-accent hover:border-accent border border-border px-2.5 py-2.5 transition-colors text-center block"
           >
             Soporte
           </a>
           <a
             href="#"
-            className="font-mono text-[10px] uppercase tracking-widest text-text-muted hover:text-accent hover:border-accent border border-border px-4 py-2 transition-colors"
+            className="font-mono text-[10px] uppercase tracking-widest text-text-muted hover:text-accent hover:border-accent border border-border px-2.5 py-2.5 transition-colors text-center block"
           >
             Privacidad
           </a>
