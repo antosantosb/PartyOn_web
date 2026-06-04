@@ -42,12 +42,12 @@ services:
 
   frontend:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: frontend/Dockerfile
       args:
         # VITE_* vars must be passed at BUILD time — Vite bakes them into the JS bundle
         # Set these in your root .env file or export them in your shell before running
-        VITE_API_BASE: ${VITE_API_BASE:-http://localhost:3000/api}
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3000/api}
         VITE_STRIPE_PUBLIC_KEY: ${VITE_STRIPE_PUBLIC_KEY}
     container_name: partyon_frontend
     restart: always
