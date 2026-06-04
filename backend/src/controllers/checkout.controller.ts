@@ -43,10 +43,10 @@ import { sendTicketEmail } from '../services/email.service';
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const createPaymentIntent = async (req: Request, res: Response) => {
-  const { ticketId, quantity } = req.body;
+  const { ticketId, quantity, buyerName, buyerEmail } = req.body;
 
   // Basic input validation — never trust client-supplied data
-  if (!ticketId || !quantity || quantity < 1) {
+  if (!ticketId || !quantity || quantity < 1 || !buyerName || !buyerEmail) {
     return res.status(400).json({ error: 'Datos incompletos' });
   }
 
@@ -86,8 +86,11 @@ export const createPaymentIntent = async (req: Request, res: Response) => {
       // Metadata is stored on the Stripe PaymentIntent for reconciliation
       // (visible in the Stripe Dashboard and webhooks)
       metadata: {
-        ticketId,
+        eventId: ticketType.eventId,
+        ticketTypeId: ticketId,
         quantity: String(quantity),
+        buyerName,
+        buyerEmail,
         ticketName: ticketType.name,
       },
 

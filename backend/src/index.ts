@@ -35,6 +35,10 @@ app.use(cors({
   credentials: true
 }));
 
+// Webhook route MUST be raw for Stripe signature verification
+import webhookRouter from './routes/webhook.route';
+app.use('/webhooks/stripe', express.raw({ type: 'application/json' }), webhookRouter);
+
 app.use(express.json({ limit: '10mb' }));
 
 // Serve uploaded images as static files at /uploads
