@@ -168,10 +168,20 @@ function CardForm({ theme, buyerName, buyerEmail, ticketId, quantity, selectedTi
         } else {
           setCardError(checkoutData.error || 'Error al registrar la entrada');
         }
+      } else if (paymentIntent) {
+        if (paymentIntent.status === 'processing') {
+          setCardError('El pago se está procesando. Revisa tu app de pago (como MB Way) para confirmar.');
+        } else if (paymentIntent.status === 'requires_payment_method') {
+          setCardError('El pago ha sido rechazado o no se pudo completar. Inténtalo con otro método.');
+        } else {
+          setCardError(`El pago no se ha completado (Estado: ${paymentIntent.status}). Inténtalo de nuevo.`);
+        }
+      } else {
+        setCardError('No se pudo confirmar el estado del pago.');
       }
-    } catch {
+    } catch (err: any) {
       // Network-level failure (no internet, backend down, CORS, etc.)
-      setCardError('Error de conexión. Inténtalo de nuevo.');
+      setCardError(err?.message || 'Error de conexión. Inténtalo de nuevo.');
     } finally {
       setIsProcessing(false);
     }

@@ -1,4 +1,5 @@
-import { prisma } from '../index';
+import { PrismaClient } from '@prisma/client';
+const prisma = new PrismaClient();
 import { generateTicketQR } from '../services/qr.service';
 import { generateTicketPDF } from '../services/pdf.service';
 import { sendTicketEmail } from '../services/email.service';
@@ -51,7 +52,7 @@ async function testDelivery() {
       },
       theme: {
         primaryColor: theme.primaryColor ?? undefined,
-        backgroundImage: (theme as any).backgroundImage ?? undefined,
+        backgroundImage: (theme as any).backgroundImage || "/hero.jpg",
       },
       ticket: {
         id: mockTicket.id,

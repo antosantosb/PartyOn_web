@@ -32,7 +32,7 @@ services:
       # ── Frontend origin (CORS) — set your production domain here ──────────
       # - FRONTEND_URL=https://partyon.tudominio.com
     volumes:
-      - uploads_data:/app/uploads
+      - uploads_data:/app/backend/uploads
     depends_on:
       - db
     command: >

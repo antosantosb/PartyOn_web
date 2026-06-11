@@ -1,5 +1,6 @@
 import { Resend } from 'resend';
-import { prisma } from '../index';
+import { PrismaClient } from '@prisma/client';
+const prisma = new PrismaClient();
 // import { marked } from 'marked'; // ESM only, using dynamic import instead
 
 /**

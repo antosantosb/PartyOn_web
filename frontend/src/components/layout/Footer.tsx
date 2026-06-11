@@ -1,3 +1,21 @@
+import React from 'react';
+
+const InstagramIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+    <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+  </svg>
+);
+
 export function Footer({ logoUrl }: { logoUrl?: string }) {
   const currentYear = new Date().getFullYear();
 
@@ -17,27 +35,16 @@ export function Footer({ logoUrl }: { logoUrl?: string }) {
           </p>
         </div>
 
-        {/* Social / Support Links - In bordered boxes */}
-        <div className="grid grid-cols-3 md:flex items-center justify-center gap-2 w-full md:w-auto">
+        {/* Social Link */}
+        <div className="flex items-center justify-center w-full md:w-auto">
           <a
             href="https://www.instagram.com/party.on.pt"
             target="_blank"
             rel="noopener noreferrer"
-            className="font-mono text-[10px] uppercase tracking-widest text-text-muted hover:text-accent hover:border-accent border border-border px-2.5 py-2.5 transition-colors text-center block"
+            className="group flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted hover:text-accent border border-border hover:border-accent bg-[#161616]/40 hover:bg-accent/5 px-6 py-3.5 transition-all duration-300"
           >
-            Instagram
-          </a>
-          <a
-            href="#"
-            className="font-mono text-[10px] uppercase tracking-widest text-text-muted hover:text-accent hover:border-accent border border-border px-2.5 py-2.5 transition-colors text-center block"
-          >
-            Soporte
-          </a>
-          <a
-            href="#"
-            className="font-mono text-[10px] uppercase tracking-widest text-text-muted hover:text-accent hover:border-accent border border-border px-2.5 py-2.5 transition-colors text-center block"
-          >
-            Privacidad
+            <InstagramIcon className="w-4 h-4 text-text-muted group-hover:text-accent group-hover:scale-110 transition-all duration-300" />
+            <span>@party.on.pt</span>
           </a>
         </div>
 
