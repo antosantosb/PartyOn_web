@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, Link } from 'react-router-dom';
 import { Settings, Terminal, ScanLine, BarChart3, ArrowLeft, Users } from 'lucide-react';
 import { useStore } from '../../lib/store';
 
@@ -6,6 +6,7 @@ export default function AdminSidebar() {
   const store = useStore();
   const primaryColor = store.theme?.primaryColor || '#00ffcc';
   const role = localStorage.getItem('userRole') || 'STAFF';
+  const logoUrl = store.eventData?.logoText1;
 
   const navItems = [];
   if (role === 'STAFF') {
@@ -24,10 +25,14 @@ export default function AdminSidebar() {
     <div className="hidden md:flex w-64 h-screen bg-[#0c0c0c] border-r border-white/8 flex-col fixed left-0 top-0">
       <div className="p-6">
         <div className="flex items-center gap-3 mb-8">
-          <div className="w-8 h-8 rounded bg-white/10 flex items-center justify-center">
-            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: primaryColor }} />
-          </div>
-          <span className="font-bold text-lg tracking-wide text-white">PartyOn</span>
+          <Link to="/" style={{ display: 'flex', alignItems: 'center' }}>
+            <img
+              src={(logoUrl && (logoUrl.startsWith('http') || logoUrl.startsWith('/'))) ? logoUrl : "/logo.PNG"}
+              alt="PartyOn"
+              style={{ height: '72px', width: 'auto', objectFit: 'contain' }}
+              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+            />
+          </Link>
         </div>
 
         <nav className="space-y-2">
@@ -36,10 +41,9 @@ export default function AdminSidebar() {
               key={item.path}
               to={item.path}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all ${
-                  isActive 
-                    ? 'bg-white/10 text-white' 
-                    : 'text-white/40 hover:text-white hover:bg-white/5'
+                `flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all ${isActive
+                  ? 'bg-white/10 text-white'
+                  : 'text-white/40 hover:text-white hover:bg-white/5'
                 }`
               }
               style={({ isActive }) => isActive ? { borderLeft: `3px solid ${primaryColor}` } : {}}
@@ -52,14 +56,14 @@ export default function AdminSidebar() {
       </div>
 
       <div className="mt-auto p-6">
-        <NavLink 
-          to="/" 
+        <NavLink
+          to="/"
           className="flex items-center gap-2 text-xs font-mono text-white/30 hover:text-white transition-colors mb-4"
         >
           <ArrowLeft className="w-3 h-3" /> Volver a Tienda
         </NavLink>
 
-        <button 
+        <button
           onClick={() => {
             localStorage.removeItem('adminToken');
             window.location.href = '/login';

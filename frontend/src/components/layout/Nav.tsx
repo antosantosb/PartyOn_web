@@ -40,7 +40,7 @@ export function Nav({ ctaLabel = 'ENTRADAS', logoUrl }: NavProps) {
           height: '80px',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'flex-start',
+          justifyContent: 'center',
         }}
       >
         {/* Logo */}
@@ -48,7 +48,7 @@ export function Nav({ ctaLabel = 'ENTRADAS', logoUrl }: NavProps) {
           <img
             src={(logoUrl && (logoUrl.startsWith('http') || logoUrl.startsWith('/'))) ? logoUrl : "/logo.PNG"}
             alt="PartyOn"
-            style={{ height: '72px', width: 'auto', objectFit: 'contain' }}
+            style={{ height: '72px', maxHeight: '90%', maxWidth: '100%', objectFit: 'contain' }}
             onError={(e) => { e.currentTarget.style.display = 'none'; }}
           />
         </Link>

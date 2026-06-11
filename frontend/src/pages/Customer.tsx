@@ -18,7 +18,9 @@ export default function Customer() {
   // Apply theme variables dynamically to the document root
   useEffect(() => {
     if (theme) {
-      document.documentElement.style.setProperty('--color-accent', theme.primaryColor || '#e63329');
+      const primaryColor = theme.primaryColor || '#e63329';
+      document.documentElement.style.setProperty('--color-accent', primaryColor);
+      document.documentElement.style.setProperty('--accent', primaryColor);
     }
   }, [theme]);
 

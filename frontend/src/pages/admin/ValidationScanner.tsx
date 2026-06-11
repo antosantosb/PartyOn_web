@@ -17,6 +17,9 @@ export default function ValidationScanner() {
   const lastScannedRef = useRef<string | null>(null);
   const isProcessingRef = useRef(false);
 
+  // Attendance stats
+  const [attendance, setAttendance] = useState<{ ticketsSold: number; validatedCount: number }>({ ticketsSold: 0, validatedCount: 0 });
+
   // Walk-in sale states
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [buyerName, setBuyerName] = useState('Taquilla');
@@ -31,12 +34,30 @@ export default function ValidationScanner() {
   const [walkinState, setWalkinState] = useState<WalkInState>('idle');
   const [walkinError, setWalkinError] = useState('');
 
+  const fetchAttendance = async () => {
+    if (!eventData?.id) return;
+    try {
+      const res = await apiFetch(`/admin/events/${eventData.id}/attendance`);
+      if (res.ok) {
+        const data = await res.json();
+        setAttendance({ ticketsSold: data.ticketsSold, validatedCount: data.validatedCount });
+      }
+    } catch (err) {
+      console.error("Error fetching attendance:", err);
+    }
+  };
+
   // Update default price when eventData resolves
   useEffect(() => {
     if (doorTicket) {
       setPricePaid(String(doorTicket.price));
     }
   }, [eventData]);
+
+  // Fetch attendance on load / event select
+  useEffect(() => {
+    fetchAttendance();
+  }, [eventData?.id]);
 
   useEffect(() => {
     const codeReader = new BrowserQRCodeReader();
@@ -92,6 +113,7 @@ export default function ValidationScanner() {
         setState('success');
         setMessage(data.message || 'APPROVED');
         setTicketData(data.ticket);
+        setAttendance(prev => ({ ...prev, validatedCount: prev.validatedCount + 1 }));
       } else {
         setState('error');
         setMessage(data.error || 'INVALID / USED');
@@ -160,6 +182,12 @@ export default function ValidationScanner() {
           ticketTypeName: `Taquilla (${selectedPayment})`
         });
 
+        // Increment attendance counts
+        setAttendance(prev => ({
+          ticketsSold: prev.ticketsSold + 1,
+          validatedCount: prev.validatedCount + 1
+        }));
+
         setTimeout(() => {
           setIsModalOpen(false);
           setWalkinState('idle');
@@ -203,7 +231,12 @@ export default function ValidationScanner() {
 
       {/* ── HEADER ── */}
       <div className="p-4 border-b border-white/10 bg-[#0c0c0c] flex items-center justify-between shrink-0">
-        <h2 className="font-bold tracking-widest uppercase text-white/80">Scanner</h2>
+        <div className="flex flex-col">
+          <h2 className="font-bold tracking-widest uppercase text-white/80">Scanner</h2>
+          <span className="text-[10px] font-mono text-white/40 tracking-wider">
+            {attendance.validatedCount} / {attendance.ticketsSold} VALIDADAS
+          </span>
+        </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />

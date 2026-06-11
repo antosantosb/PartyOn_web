@@ -88,7 +88,7 @@ function CardForm({ theme, buyerName, buyerEmail, ticketId, quantity, selectedTi
       const piRes = await fetch(`${API_BASE}/create-payment-intent`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ticketId, quantity })
+        body: JSON.stringify({ ticketId, quantity, buyerName, buyerEmail })
       });
       const piData = await piRes.json();
       if (!piData.clientSecret) {

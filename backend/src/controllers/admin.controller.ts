@@ -397,6 +397,7 @@ export const getEventAnalytics = async (req: Request, res: Response) => {
     const totalExpenses = event.expenses.reduce((sum: number, e: any) => sum + (e.amount || 0), 0);
     const netProfit = totalRevenue - totalExpenses;
     const ticketsSold = event.tickets.length;
+    const validatedCount = event.tickets.filter((t: any) => t.status === 'USED').length;
     const totalCapacity = event.ticketTypes.reduce((sum: number, tt: any) => sum + (tt.maxStock || 0), 0);
 
     // Calcular ventas agrupadas por día
@@ -457,6 +458,7 @@ export const getEventAnalytics = async (req: Request, res: Response) => {
         totalExpenses,
         netProfit,
         ticketsSold,
+        validatedCount,
         totalCapacity,
         expenses: event.expenses,
         salesByDay,
@@ -467,6 +469,27 @@ export const getEventAnalytics = async (req: Request, res: Response) => {
   } catch (error) {
     console.error("[getEventAnalytics] Error:", error);
     res.status(500).json({ error: "Failed to fetch analytics" });
+  }
+};
+
+export const getEventAttendance = async (req: Request, res: Response) => {
+  try {
+    const { eventId } = req.params;
+    if (!eventId) return res.status(400).json({ error: "Missing event ID" });
+
+    const [ticketsSold, validatedCount] = await prisma.$transaction([
+      prisma.ticket.count({
+        where: { eventId: eventId as string, status: { not: 'CANCELLED' } }
+      }),
+      prisma.ticket.count({
+        where: { eventId: eventId as string, status: 'USED' }
+      })
+    ]);
+
+    res.json({ success: true, ticketsSold, validatedCount });
+  } catch (error) {
+    console.error("[getEventAttendance] Error:", error);
+    res.status(500).json({ error: "Failed to fetch attendance" });
   }
 };
 

@@ -10,7 +10,8 @@ import {
   createEvent, 
   deleteEvent, 
   getEventAnalytics,
-  processWalkIn
+  processWalkIn,
+  getEventAttendance
 } from '../controllers/admin.controller';
 import { createPaymentIntent, processCheckout } from '../controllers/checkout.controller';
 import { updateTicketTypes } from '../controllers/ticketType.controller';
@@ -52,6 +53,7 @@ router.delete('/admin/management/expenses/:id', authMiddleware, authorize(['ADMI
 router.get('/admin/management/export-csv/:eventId', authMiddleware, authorize(['ADMIN', 'DEV']), exportTicketsCSV);
 
 // Validation & Walk-in Registration (Accessible by ADMIN, DEV, and STAFF)
+router.get('/admin/events/:eventId/attendance', authMiddleware, authorize(['ADMIN', 'DEV', 'STAFF']), getEventAttendance);
 router.post('/admin/tickets/validate', authMiddleware, authorize(['ADMIN', 'DEV', 'STAFF']), validateTicket);
 router.post('/admin/tickets/walk-in', authMiddleware, authorize(['ADMIN', 'DEV', 'STAFF']), processWalkIn);
 

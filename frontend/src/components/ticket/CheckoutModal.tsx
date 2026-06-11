@@ -31,6 +31,7 @@ export function CheckoutModal({
   const [buyerEmail, setBuyerEmail] = useState('');
   const [nameError, setNameError] = useState('');
   const [emailError, setEmailError] = useState('');
+  const [infoModal, setInfoModal] = useState<'terms' | 'privacy' | null>(null);
 
   const totalPrice = (selectedTicket.price * quantity).toFixed(2);
 
@@ -72,6 +73,7 @@ export function CheckoutModal({
     setBuyerEmail('');
     setNameError('');
     setEmailError('');
+    setInfoModal(null);
   };
 
   return (
@@ -163,10 +165,30 @@ export function CheckoutModal({
                         required
                       />
 
+                      <p className="text-[11px] text-white/50 leading-relaxed text-center mt-4 mb-2">
+                        Al continuar, aceptas nuestros{' '}
+                        <button
+                          type="button"
+                          onClick={() => setInfoModal('terms')}
+                          className="text-accent underline hover:text-accent/80 transition-colors font-semibold"
+                        >
+                          términos
+                        </button>{' '}
+                        y la{' '}
+                        <button
+                          type="button"
+                          onClick={() => setInfoModal('privacy')}
+                          className="text-accent underline hover:text-accent/80 transition-colors font-semibold"
+                        >
+                          política de privacidad
+                        </button>
+                        .
+                      </p>
+
                       <Button
                         type="submit"
                         variant="primary"
-                        className="w-full flex items-center justify-center gap-2 mt-6"
+                        className="w-full flex items-center justify-center gap-2 mt-4"
                       >
                         CONTINUAR AL PAGO <ArrowRight className="w-4 h-4" />
                       </Button>
@@ -266,6 +288,93 @@ export function CheckoutModal({
               </AnimatePresence>
             </motion.div>
           </div>
+
+          {/* Sub-modal for Terms / Privacy */}
+          <AnimatePresence>
+            {infoModal && (
+              <>
+                <motion.div
+                  key="sub-backdrop"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setInfoModal(null)}
+                  className="fixed inset-0 z-[60] bg-black/90 cursor-pointer pointer-events-auto"
+                />
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 pointer-events-none">
+                  <motion.div
+                    key="sub-modal-content"
+                    initial={{ scale: 0.95, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.95, opacity: 0 }}
+                    transition={{ type: 'spring', damping: 25, stiffness: 220 }}
+                    className="w-full max-w-sm bg-[#181818] border border-white/10 p-6 pointer-events-auto rounded-none select-none relative"
+                  >
+                    <button
+                      onClick={() => setInfoModal(null)}
+                      className="absolute top-4 right-4 text-white/30 hover:text-white transition-colors p-1"
+                      aria-label="Cerrar"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+
+                    {infoModal === 'terms' ? (
+                      <div>
+                        <h4 className="font-display text-lg uppercase tracking-wider text-white mb-4">
+                          INFORMACIÓN RGPD
+                        </h4>
+                        <div className="space-y-3 text-xs text-white/70 leading-relaxed font-mono">
+                          <p>
+                            <span className="text-accent font-bold">RESPONSABLE:</span> PartyOn S.L.
+                          </p>
+                          <p>
+                            <span className="text-accent font-bold">FINALIDAD:</span> Gestión y emisión de entradas, control de acceso al evento y envío de comunicaciones comerciales relacionadas.
+                          </p>
+                          <p>
+                            <span className="text-accent font-bold">LEGITIMACIÓN:</span> Ejecución contractual y consentimiento del interesado.
+                          </p>
+                          <p>
+                            <span className="text-accent font-bold">DESTINATARIOS:</span> No se cederán datos a terceros salvo obligación legal o proveedores de servicios de pago (Stripe).
+                          </p>
+                          <p>
+                            <span className="text-accent font-bold">DERECHOS:</span> Acceso, rectificación, supresión y portabilidad de sus datos, así como la limitación u oposición a su tratamiento.
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <h4 className="font-display text-lg uppercase tracking-wider text-white mb-4">
+                          POLÍTICA DE PRIVACIDAD
+                        </h4>
+                        <div className="space-y-3 text-xs text-white/70 leading-relaxed font-mono">
+                          <p className="text-accent font-bold uppercase tracking-wider">
+                            Derechos de Imagen y Grabación
+                          </p>
+                          <p>
+                            Al adquirir esta entrada y acceder al evento, el asistente consiente expresamente y autoriza a PartyOn S.L. a realizar grabaciones de vídeo y fotografías en las que pueda aparecer su imagen.
+                          </p>
+                          <p>
+                            Estas imágenes y grabaciones podrán ser publicadas y difundidas en las redes sociales oficiales, sitio web y otros canales de comunicación de PartyOn con fines de promoción, marketing y publicidad de los eventos de la marca.
+                          </p>
+                          <p>
+                            Si no desea ser filmado o fotografiado, puede comunicarlo directamente al personal de organización o de fotografía en el evento.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    <Button
+                      variant="outline"
+                      onClick={() => setInfoModal(null)}
+                      className="w-full mt-6 text-xs"
+                    >
+                      Entendido
+                    </Button>
+                  </motion.div>
+                </div>
+              </>
+            )}
+          </AnimatePresence>
         </>
       )}
     </AnimatePresence>
