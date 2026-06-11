@@ -12,15 +12,17 @@
 │  ┌─────────────────┐    ┌──────────────────────────────┐  │
 │  │  Storefront /   │    │   Admin Panel /admin         │  │
 │  │  Customer-facing│    │   (Config · Management ·     │  │
-│  │  ticket shop    │    │    Validation · DevTools)    │  │
+│  │  ticket shop    │    │    Validation · Users · Dev) │  │
 │  └────────┬────────┘    └──────────────┬───────────────┘  │
 └───────────┼─────────────────────────────┼─────────────────┘
             │  REST API + JWT Auth         │
 ┌───────────▼─────────────────────────────▼─────────────────┐
 │                   BACKEND (Express + TypeScript)           │
-│  Controllers: admin · auth · checkout · ticketType · dev  │
+│  Controllers: admin · auth · checkout · ticketType ·      │
+│               dev · expense · export · user · webhook     │
 │  Services:    Stripe · Resend · React-PDF · QR Code       │
-│  Middleware:  JWT Auth · RBAC (ADMIN / STAFF / DEV)       │
+│  Middleware:  JWT Auth · RBAC (ADMIN / STAFF / DEV) ·     │
+│               Rate Limiting (login / payment / checkout)  │
 └───────────────────────────────┬───────────────────────────┘
                                 │
               ┌─────────────────▼──────────────────┐
@@ -28,8 +30,11 @@
               │  Models: Event · TicketType ·       │
               │  Ticket · Order · Theme ·           │
               │  GalleryImage · Expense · AuditLog  │
+              │  User · (Promoter · DiscountCode*)  │
               └────────────────────────────────────┘
 ```
+
+> *Promoter & DiscountCode models are planned for the next development phase.
 
 ---
 
@@ -45,6 +50,8 @@
 | Automated email delivery via Resend | ✅ Done |
 | Mobile-responsive layout | ✅ Done |
 | Newsletter subscription section | 🟡 UI only (no backend storage) |
+| i18n (Español / Português) | 🔴 Planned |
+| Discount code field at checkout | 🔴 Planned |
 
 ### Admin Panel
 | Feature | Status |
@@ -56,10 +63,12 @@
 | Walk-in door sale (cash / MBWay) | ✅ Done |
 | Management dashboard (revenue, expenses chart) | ✅ Done |
 | Export global marketing emails list (CSV) | ✅ Done |
-| Expense entry (create/delete) | 🔴 Missing |
-| User management (CRUD for staff/admin) | 🔴 Missing |
-| Gallery image management (upload + reorder) | 🔴 Partial |
-| Password recovery flow | 🔴 Missing |
+| Expense entry (create/edit/delete) | ✅ Done |
+| User management (CRUD for staff/admin) | ✅ Done |
+| Gallery image management (upload + reorder) | 🟡 Partial (API done, UI incomplete) |
+| Promoter management + discount codes | 🔴 Planned |
+| Password recovery (admin-managed reset) | 🟡 Admin can reset any user's password from the Users panel |
+| Password recovery (self-service email link) | 🔴 Not implemented |
 
 ### Backend / Infrastructure
 | Feature | Status |
@@ -72,8 +81,9 @@
 | Dev dashboard (DB stats, live logs, ticket search) | ✅ Done |
 | Docker + Docker Compose deployment | ✅ Done |
 | Shared Zod schemas (monorepo) | ✅ Done |
-| Stripe webhook handler | 🔴 Missing (critical) |
-| API rate limiting | 🔴 Missing |
+| Stripe webhook handler (`payment_intent.succeeded`) | ✅ Done |
+| API rate limiting (login / checkout / payment-intent) | ✅ Done |
+| Promoter & discount code API | 🔴 Planned |
 | Database backups | 🔴 Missing |
 
 ---
@@ -93,7 +103,7 @@
 | **QR Scanner** | @zxing/browser |
 | **Timezones** | date-fns-tz (strict Europe/Lisbon) |
 | **Validation** | Zod (shared `@partyon/schemas` package) |
-| **Infrastructure** | Docker, Docker Compose |
+| **Infrastructure** | Docker, Docker Compose, Caddy (reverse proxy) |
 
 ---
 
@@ -101,7 +111,7 @@
 
 | Role | Access |
 |---|---|
-| `ADMIN` | Full admin panel: Configuration, Management, Validation |
+| `ADMIN` | Full admin panel: Configuration, Management, Validation, Users |
 | `STAFF` | Validation scanner + Walk-in sales only |
 | `DEV` | All of the above + Dev tools (DB stats, audit logs, ticket search) |
 
@@ -132,6 +142,7 @@ Create `backend/.env`:
 DATABASE_URL=postgresql://admin:adminpassword@localhost:5432/partyon?schema=public
 JWT_SECRET=your-very-long-random-secret-minimum-64-chars
 STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
 RESEND_API_KEY=re_...
 BACKEND_URL=http://localhost:3000
 FRONTEND_URL=http://localhost:5173
@@ -151,7 +162,7 @@ docker-compose up -d --build
 
 This will:
 1. Start a PostgreSQL 15 database
-2. Run `prisma db push` to sync the schema
+2. Run `prisma migrate deploy` to sync the schema
 3. Run the database seed (creates a default event)
 4. Start the Express backend on port 3000
 
@@ -175,7 +186,7 @@ npm run dev
 
 ### 5. Create Your First Admin User
 
-Since there is no user management UI yet, create users via the seed or Prisma Studio:
+Use the User Management panel at `/admin/users`, or bootstrap via script:
 
 ```bash
 cd backend
@@ -192,51 +203,55 @@ npx ts-node src/scripts/create-user.ts
 PartyOn_web/
 ├── backend/
 │   ├── prisma/
-│   │   ├── schema.prisma       # All DB models
+│   │   ├── schema.prisma          # All DB models
+│   │   ├── migrations/            # Prisma migration history
 │   │   └── seed.ts
 │   └── src/
-│       ├── controllers/        # admin · auth · checkout · ticketType · dev
-│       ├── middleware/         # auth.middleware (JWT + RBAC)
-│       ├── routes/             # api.route.ts (single router)
-│       ├── services/           # stripe · email · pdf · qr
-│       └── index.ts            # Express app entry point
+│       ├── controllers/           # admin · auth · checkout · ticketType
+│       │                          # dev · expense · export · user · webhook
+│       ├── middleware/            # auth.middleware (JWT + RBAC)
+│       │                          # rateLimit.middleware
+│       ├── routes/                # api.route.ts · user.route.ts · webhook.route.ts
+│       ├── services/              # stripe · email · pdf · qr
+│       └── index.ts               # Express app entry point
 ├── frontend/
 │   └── src/
-│       ├── components/         # StripeCheckout · ProtectedRoute · layout · ui
+│       ├── components/            # StripeCheckout · ProtectedRoute · layout · ui
+│       │   └── admin/             # AdminSidebar · management tabs
 │       ├── pages/
-│       │   ├── Customer.tsx    # Storefront
+│       │   ├── Customer.tsx       # Storefront
 │       │   ├── Login.tsx
-│       │   └── admin/          # Configuration · Management · Validation · Dev
+│       │   └── admin/             # Configuration · ManagementDashboard
+│       │                          # ValidationScanner · DevDashboard · Users
 │       ├── lib/
-│       │   ├── api-client.ts   # Centralized fetch with JWT injection
-│       │   └── store.ts        # useStore() — event data + localStorage cache
+│       │   ├── api-client.ts      # Centralized fetch with JWT injection
+│       │   └── store.ts           # useStore() — event data + localStorage cache
 │       └── config/
 │           └── api.ts
 └── packages/
-    └── schemas/                # Shared Zod schemas (@partyon/schemas)
+    └── schemas/                   # Shared Zod schemas (@partyon/schemas)
 ```
 
 ---
 
 ## 🔜 Roadmap (Next Development Phase)
 
-### Critical (Pre-Production Blockers)
-- [ ] **Stripe Webhook** — `payment_intent.succeeded` handler to guarantee ticket delivery even if the browser closes after payment
-- [ ] **API Rate Limiting** — Protect `/auth/login`, `/checkout`, and `/create-payment-intent` against brute-force and spam
-- [ ] **Production email domain** — Replace `onboarding@resend.dev` with verified custom domain
-- [ ] **HTTPS + reverse proxy** — Nginx/Caddy with TLS in front of the backend
+### 🔧 Active Bug Fixes
+- [ ] **PDF Layout Bug** — Hero image of variable dimensions causes QR code to overflow onto a second page. Fix: use `sharp` to pre-scale images + convert all fixed heights to `flex`-based layout.
 
-### High Priority (Business Logic)
-- [ ] **User Management UI** — Create/delete admin and staff accounts from the panel
-- [ ] **Expense CRUD** — Form to register and delete operational expenses per event
-- [ ] **Password Recovery** — `/auth/forgot-password` + `/auth/reset-password` with time-limited tokens
-- [ ] **Newsletter Storage** — Save subscriber emails to a `Subscriber` model
+### 🔴 Missing Features (High Priority)
+- [ ] **Promoter System** — Promoter entities with associated discount codes; track sales per promoter in analytics
+- [ ] **i18n (ES/PT)** — `react-i18next` integration for the customer storefront (Español / Português)
+- [ ] **Newsletter Storage** — Save subscriber emails to a `Subscriber` model via `POST /api/subscribe`
+- [ ] **Self-service Password Recovery** — `/auth/forgot-password` email link flow via Resend (admin-managed reset already exists in the Users panel)
+- [ ] **Gallery Image Manager** — Drag-and-drop upload/reorder UI in the backoffice (API is ready)
 
-### Phase 2 (V2 Features)
-- [ ] **Discount Codes** — Percentage or fixed-amount coupon system
-- [ ] **Real-time Scan Feed** — Entry rate chart for promoters during the event
+### 🛡️ Security & Infrastructure
+- [ ] **Production Stripe keys** — Switch `sk_test_...` → `sk_live_...` before any live event
+- [ ] **Custom email domain** — Replace `onboarding@resend.dev` with verified domain in Resend
+- [ ] **HTTPS + Caddy** — TLS in front of the backend (Caddyfile already included)
 - [ ] **Database Backups** — Automated `pg_dump` with off-site storage
-- [ ] **Gallery Image Manager** — Drag-and-drop upload/reorder in the backoffice
+- [ ] **Secure credentials** — Change `POSTGRES_PASSWORD` from default `adminpassword`
 
 > See [PROJECT_BACKLOG.md](./PROJECT_BACKLOG.md) for the full detailed task list.
 
@@ -246,19 +261,21 @@ PartyOn_web/
 
 ```
 [ ] Stripe LIVE keys configured and tested with a real payment
-[ ] Custom email domain verified in Resend
-[ ] HTTPS active on backend (required for Stripe webhooks)
+[ ] Stripe webhook endpoint registered (STRIPE_WEBHOOK_SECRET set)
+[ ] Custom email domain verified in Resend (not onboarding@resend.dev)
+[ ] HTTPS active on backend via Caddy (required for Stripe webhooks)
 [ ] JWT_SECRET is a cryptographically random 64+ char string
 [ ] CORS restricted to FRONTEND_URL production domain
-[ ] Rate limiting active on auth and payment endpoints
-[ ] Stripe webhook endpoint registered and signature verified
+[ ] Rate limiting verified active on auth and payment endpoints
 [ ] Admin and staff users created with secure passwords
 [ ] Default database credentials changed (not 'adminpassword')
+[ ] prisma db push replaced with prisma migrate deploy in docker-compose
 [ ] Database backup strategy in place before the event
 [ ] Full purchase flow tested end-to-end in production
 [ ] QR scanner tested with a real printed ticket
 [ ] Walk-in sale tested with both payment methods
 [ ] Confirmation emails verified (check spam folder)
+[ ] PDF ticket reviewed — QR is not split across pages
 ```
 
 ---
@@ -267,4 +284,7 @@ PartyOn_web/
 > **Timezone**: This platform is strictly configured for **Europe/Lisbon** timezone. All datetime inputs are interpreted in this zone server-side via `date-fns-tz`. Ensure your host system clock is synced (NTP).
 
 > [!WARNING]
-> **Stripe Webhook**: Until the webhook handler is implemented, there is a risk that paid orders may not generate tickets if the user's browser closes between Stripe confirming the payment and the frontend calling `/checkout`. Prioritize this before any live event.
+> **PDF Layout**: The PDF generator uses fixed pixel dimensions. If the hero background image has an unusual aspect ratio, the QR code section may overflow. A fix using `sharp` for image pre-processing is planned in the next sprint.
+
+> [!IMPORTANT]
+> **Stripe Webhook**: The webhook handler (`POST /webhooks/stripe` for `payment_intent.succeeded`) is implemented. Ensure `STRIPE_WEBHOOK_SECRET` is set in `backend/.env` and the endpoint is registered in the Stripe Dashboard before going live.
