@@ -13,47 +13,47 @@ model User {
   id        String   @id @default(cuid())
   email     String   @unique
   password  String
-  name      String?
+  name      String
   role      String   @default("ADMIN") // ADMIN, STAFF
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   auditLogs      AuditLog[]
   scannedTickets Ticket[]   @relation("ScannedTickets")
 }
 
 model Event {
-  id            String      @id @default(cuid())
-  name          String      @default("PARTY ON EVENT")
-  isPublished   Boolean     @default(false)
-  tagline       String?     // Subtítulo bajo el nombre del evento
-  date          String      @default("SÁBADO 15 NOVIEMBRE")
-  startsAt      DateTime?
-  endsAt        DateTime?
-  location      String      @default("BRAGA")
-  lineup        String?     // Artistas separados por comas
+  id          String    @id @default(cuid())
+  name        String    @default("PARTY ON EVENT")
+  isPublished Boolean   @default(false)
+  tagline     String? // Subtítulo bajo el nombre del evento
+  date        String    @default("SÁBADO 15 NOVIEMBRE")
+  startsAt    DateTime?
+  endsAt      DateTime?
+  location    String    @default("BRAGA")
+  lineup      String? // Artistas separados por comas
 
   // Configurable content fields
-  tickerText        String?   // "REGGAETON • SALSA • MERENGUE • BACHATA"
-  manifesto         String?   @db.Text  // Frase grande en la sección roja
-  manifestoLabel    String?   // Etiqueta pequeña encima ("MANIFIESTO")
-  ctaLabel          String?   @default("COMPRAR ENTRADA") // Texto del botón principal
+  tickerText     String? // "REGGAETON • SALSA • MERENGUE • BACHATA"
+  manifesto      String? @db.Text // Frase grande en la sección roja
+  manifestoLabel String? // Etiqueta pequeña encima ("MANIFIESTO")
+  ctaLabel       String? @default("COMPRAR ENTRADA") // Texto del botón principal
 
   // Gallery Section
-  showGallery       Boolean   @default(false)
-  galleryTitle      String?   // "LO QUE FUE: NOSTALGIA"
-  galleryImages     GalleryImage[]
+  showGallery   Boolean        @default(false)
+  galleryTitle  String? // "LO QUE FUE: NOSTALGIA"
+  galleryImages GalleryImage[]
 
   // Newsletter Section
-  showNewsletter    Boolean   @default(false)
-  newsletterText    String?   // "Únete al pulso"
-  newsletterSubtext String?   // Texto descriptivo bajo el título
+  showNewsletter    Boolean @default(false)
+  newsletterText    String? // "Únete al pulso"
+  newsletterSubtext String? // Texto descriptivo bajo el título
 
   // Customization
-  logoText1    String   @default("PARTY")
-  logoText2    String   @default("ON")
-  emailSubject String   @default("Entrada para PartyOn")
-  emailBody    String   @default("Gracias por tu compra. Te adjuntamos tu entrada en este correo.") @db.Text
+  logoText1    String @default("PARTY")
+  logoText2    String @default("ON")
+  emailSubject String @default("Entrada para PartyOn")
+  emailBody    String @default("Gracias por tu compra. Te adjuntamos tu entrada en este correo.") @db.Text
 
   ticketTypes TicketType[]
   theme       Theme?
@@ -61,8 +61,8 @@ model Event {
   expenses    Expense[]
   orders      Order[]
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model GalleryImage {
@@ -76,26 +76,26 @@ model GalleryImage {
 }
 
 model Theme {
-  id                    String   @id @default(cuid())
-  eventId               String   @unique
-  event                 Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  
-  primaryColor          String   @default("#e63329") // defaults to red
-  secondaryColor        String   @default("#ff007f")
-  backgroundImage       String?  
-  backgroundImageMobile String?  
-  ticketTemplate        String?  
+  id      String @id @default(cuid())
+  eventId String @unique
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
-  updatedAt             DateTime @updatedAt
+  primaryColor          String  @default("#e63329") // defaults to red
+  secondaryColor        String  @default("#ff007f")
+  backgroundImage       String?
+  backgroundImageMobile String?
+  ticketTemplate        String?
+
+  updatedAt DateTime @updatedAt
 }
 
 model TicketType {
-  id           String    @id @default(cuid())
-  eventId      String
-  event        Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  
+  id      String @id @default(cuid())
+  eventId String
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
   name         String
-  description  String?   // "Acceso general", "Zona VIP + 1 copa"
+  description  String? // "Acceso general", "Zona VIP + 1 copa"
   price        Float
   maxStock     Int       @default(0)
   soldCount    Int       @default(0)
@@ -122,38 +122,38 @@ model Order {
 }
 
 model Ticket {
-  id            String     @id @default(cuid())
-  eventId       String
-  event         Event      @relation(fields: [eventId], references: [id])
-  ticketTypeId  String
-  ticketType    TicketType @relation(fields: [ticketTypeId], references: [id])
-  
-  orderId       String?
-  order         Order?     @relation(fields: [orderId], references: [id])
-  
+  id           String     @id @default(cuid())
+  eventId      String
+  event        Event      @relation(fields: [eventId], references: [id])
+  ticketTypeId String
+  ticketType   TicketType @relation(fields: [ticketTypeId], references: [id])
+
+  orderId String?
+  order   Order?  @relation(fields: [orderId], references: [id])
+
   email         String
   name          String
-  status        String     @default("VALID") // VALID, USED, CANCELLED
+  status        String  @default("VALID") // VALID, USED, CANCELLED
   paymentIntent String?
-  pricePaid     Float      @default(0)
-  
-  scannedAt     DateTime?
-  scannedById   String?
-  scannedBy     User?      @relation("ScannedTickets", fields: [scannedById], references: [id])
-  
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  pricePaid     Float   @default(0)
+
+  scannedAt   DateTime?
+  scannedById String?
+  scannedBy   User?     @relation("ScannedTickets", fields: [scannedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Expense {
-  id          String   @id @default(cuid())
-  eventId     String
-  event       Event    @relation(fields: [eventId], references: [id])
-  name        String
-  amount      Float
-  category    String   @default("GENERAL") // e.g. VENUE, DJ, SECURITY, BAR
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id])
+  name      String
+  amount    Float
+  category  String   @default("GENERAL") // e.g. VENUE, DJ, SECURITY, BAR
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model AuditLog {

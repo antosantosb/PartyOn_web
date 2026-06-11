@@ -46,7 +46,41 @@ export const LoginSchema = z.object({
   password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
 });
 
+export const CreateUserSchema = z.object({
+  name: z.string().min(1, "El nombre es obligatorio"),
+  email: z.string().email("Email inválido"),
+  role: z.enum(['DEV', 'ADMIN', 'STAFF'], {
+    errorMap: () => ({ message: "Rol inválido" })
+  }),
+  password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
+});
+
+export const UpdateUserSchema = z.object({
+  name: z.string().min(1, "El nombre es obligatorio").optional(),
+  email: z.string().email("Email inválido").optional(),
+  role: z.enum(['DEV', 'ADMIN', 'STAFF'], {
+    errorMap: () => ({ message: "Rol inválido" })
+  }).optional(),
+  password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres").optional(),
+});
+
+export const ResetPasswordSchema = z.object({
+  password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
+});
+
+export const ExpenseSchema = z.object({
+  name: z.string().min(1, "El concepto es obligatorio").max(100, "Máximo 100 caracteres"),
+  amount: z.number().positive("El importe debe ser mayor que cero"),
+  category: z.string().min(1, "La categoría es obligatoria").max(50),
+  eventId: z.string().min(1, "El ID de evento es obligatorio")
+});
+
 export type EventFormData = z.infer<typeof EventSchema>;
 export type TicketTypeFormData = z.infer<typeof TicketTypeSchema>;
 export type CheckoutFormData = z.infer<typeof CheckoutSchema>;
 export type LoginFormData = z.infer<typeof LoginSchema>;
+export type CreateUserFormData = z.infer<typeof CreateUserSchema>;
+export type UpdateUserFormData = z.infer<typeof UpdateUserSchema>;
+export type ResetPasswordFormData = z.infer<typeof ResetPasswordSchema>;
+export type ExpenseFormData = z.infer<typeof ExpenseSchema>;
+

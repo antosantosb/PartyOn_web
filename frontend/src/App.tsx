@@ -7,6 +7,7 @@ import Configuration from './pages/admin/Configuration';
 import DevDashboard from './pages/admin/DevDashboard';
 import ValidationScanner from './pages/admin/ValidationScanner';
 import ManagementDashboard from './pages/admin/ManagementDashboard';
+import Users from './pages/admin/Users';
 
 function RoleGuard({ allowedRoles, fallbackPath }: { allowedRoles: string[]; fallbackPath: string }) {
   const role = localStorage.getItem('userRole');
@@ -34,6 +35,7 @@ export default function App() {
             <Route element={<RoleGuard allowedRoles={['ADMIN', 'DEV']} fallbackPath="/admin/validation" />}>
               <Route path="configuration" element={<Configuration />} />
               <Route path="management" element={<ManagementDashboard />} />
+              <Route path="users" element={<Users />} />
             </Route>
 
             {/* DEV only routes */}

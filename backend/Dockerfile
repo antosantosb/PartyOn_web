@@ -7,22 +7,16 @@ RUN apt-get update -y && apt-get install -y openssl
 # A root do contentor pasa a ser /app
 WORKDIR /app
 
-# 1. Copiar as definições do Monorepo PRIMEIRO
-COPY package*.json ./
-COPY frontend/package*.json ./frontend/
-COPY backend/package*.json ./backend/
-COPY packages/schemas/package*.json ./packages/schemas/
-
-# 2. Instalar as dependências na raiz (Com a vacina para o bug do Vite/Rolldown/Prisma)
-RUN rm -f package-lock.json && npm cache clean --force && npm install --include=optional
-
-# 3. Copiar o resto do código de todo o projeto
+# 1. Copiar todo o código de todo o projeto
 COPY . .
 
-# 4. Gerar o cliente do Prisma (Apontando para o ficheiro correto)
+# 2. Instalar as dependências na raiz
+RUN rm -f package-lock.json && npm cache clean --force && npm install --include=optional
+
+# 3. Gerar o cliente do Prisma (Apontando para o ficheiro correto)
 RUN npx prisma generate --schema=./backend/prisma/schema.prisma
 
-# 5. Compilar! Primeiro os schemas (se tiverem build), depois o backend
+# 4. Compilar! Primeiro os schemas (se tiverem build), depois o backend
 RUN npm run build -w @partyon/schemas --if-present
 RUN npm run build -w backend
 

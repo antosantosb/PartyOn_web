@@ -1,0 +1,17 @@
+{
+    email admin@tudominio.com   # ← Cambia esto por tu email para Let's Encrypt
+}
+
+# ── PartyOn Web (Venta de entradas + Validación) ──────────────────────────────
+partyon.tudominio.com {         # ← Cambia esto por tu dominio de producción
+    handle /api/* {
+        reverse_proxy web_backend:3000
+    }
+    handle {
+        reverse_proxy web_frontend:80
+    }
+    header {
+        Permissions-Policy "interest-cohort=()"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    }
+}

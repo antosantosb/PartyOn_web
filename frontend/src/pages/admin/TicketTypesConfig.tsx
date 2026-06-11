@@ -48,13 +48,6 @@ export function TicketTypesConfig({
         </button>
       </div>
 
-      {ticketError && (
-        <div className="flex items-start gap-2 text-sm text-red-400 bg-red-400/8 border border-red-400/20 rounded-lg px-3 py-2.5">
-          <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-          <span>{ticketError}</span>
-        </div>
-      )}
-
       {ticketTypes.length === 0 && (
         <p className="text-sm text-white/20 text-center py-4">
           No hay tipos de entrada. Haz clic en <span className="font-mono">+ Añadir tipo</span>.

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { fromZonedTime } from 'date-fns-tz';
+import { format } from 'date-fns';
 import { prisma } from '../index';
 import { EventSchema } from '@partyon/schemas';
 
@@ -398,6 +399,57 @@ export const getEventAnalytics = async (req: Request, res: Response) => {
     const ticketsSold = event.tickets.length;
     const totalCapacity = event.ticketTypes.reduce((sum: number, tt: any) => sum + (tt.maxStock || 0), 0);
 
+    // Calcular ventas agrupadas por día
+    const salesByDayMap: Record<string, { count: number; revenue: number }> = {};
+    // Calcular ventas agrupadas por hora
+    const salesByHourMap: Record<string, number> = {};
+
+    // Inicializar las 24 horas
+    for (let i = 0; i < 24; i++) {
+      const hh = String(i).padStart(2, '0') + ':00';
+      salesByHourMap[hh] = 0;
+    }
+
+    event.tickets.forEach((t: any) => {
+      const dayStr = format(new Date(t.createdAt), 'yyyy-MM-dd');
+      if (!salesByDayMap[dayStr]) {
+        salesByDayMap[dayStr] = { count: 0, revenue: 0 };
+      }
+      salesByDayMap[dayStr].count += 1;
+      salesByDayMap[dayStr].revenue += t.pricePaid || 0;
+
+      const hourStr = format(new Date(t.createdAt), 'HH') + ':00';
+      if (salesByHourMap[hourStr] !== undefined) {
+        salesByHourMap[hourStr] += 1;
+      }
+    });
+
+    const salesByDay = Object.entries(salesByDayMap)
+      .map(([date, data]) => ({
+        date,
+        count: data.count,
+        revenue: data.revenue
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    const salesByHour = Object.entries(salesByHourMap)
+      .map(([hour, count]) => ({ hour, count }))
+      .sort((a, b) => a.hour.localeCompare(b.hour));
+
+    // Ventas por tipo de entrada
+    const salesByTicketType = event.ticketTypes.map((tt: any) => {
+      const typeTickets = event.tickets.filter((t: any) => t.ticketTypeId === tt.id);
+      const sold = typeTickets.length;
+      const revenue = typeTickets.reduce((sum: number, t: any) => sum + (t.pricePaid || 0), 0);
+      return {
+        id: tt.id,
+        name: tt.name,
+        sold,
+        revenue,
+        maxStock: tt.maxStock
+      };
+    });
+
     res.json({
       success: true,
       analytics: {
@@ -406,7 +458,10 @@ export const getEventAnalytics = async (req: Request, res: Response) => {
         netProfit,
         ticketsSold,
         totalCapacity,
-        expenses: event.expenses
+        expenses: event.expenses,
+        salesByDay,
+        salesByHour,
+        salesByTicketType
       }
     });
   } catch (error) {

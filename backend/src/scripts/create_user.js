@@ -23,8 +23,9 @@ async function main() {
   let email = process.argv[2];
   let password = process.argv[3];
   let role = process.argv[4];
+  let name = process.argv[5];
 
-  if (!email || !password || !role) {
+  if (!email || !password || !role || !name) {
     console.log('\n--- Creación de Usuario PartyOn (Interactivo) ---');
     if (!email) {
       email = await askQuestion('Introduce el email del usuario: ');
@@ -36,23 +37,27 @@ async function main() {
       const roleSelection = await askQuestion('Introduce el rol (DEV, ADMIN, STAFF): ');
       role = roleSelection.toUpperCase().trim();
     }
+    if (!name) {
+      name = await askQuestion('Introduce el nombre del usuario: ');
+    }
   }
 
   email = email.trim();
   password = password.trim();
   role = role.toUpperCase().trim();
+  name = name.trim();
 
   if (!['DEV', 'ADMIN', 'STAFF'].includes(role)) {
     console.error('\n❌ Error: El rol debe ser DEV, ADMIN o STAFF');
     process.exit(1);
   }
 
-  if (!email || !password) {
-    console.error('\n❌ Error: Email y contraseña no pueden estar vacíos');
+  if (!email || !password || !name) {
+    console.error('\n❌ Error: Email, contraseña y nombre no pueden estar vacíos');
     process.exit(1);
   }
 
-  console.log(`\nCreando usuario ${email} con rol ${role}...`);
+  console.log(`\nCreando usuario ${email} con nombre "${name}" y rol ${role}...`);
 
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -60,16 +65,18 @@ async function main() {
       where: { email },
       update: {
         password: hashedPassword,
-        role
+        role,
+        name
       },
       create: {
         email,
         password: hashedPassword,
-        role
+        role,
+        name
       }
     });
 
-    console.log(`\n✅ Usuario creado/actualizado con éxito: ${user.email} (Rol: ${user.role})\n`);
+    console.log(`\n✅ Usuario creado/actualizado con éxito: ${user.email} (Nombre: ${user.name}, Rol: ${user.role})\n`);
   } catch (error) {
     console.error('\n❌ Error al guardar en la base de datos:', error);
   } finally {

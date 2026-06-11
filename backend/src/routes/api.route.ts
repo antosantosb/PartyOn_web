@@ -16,18 +16,24 @@ import { createPaymentIntent, processCheckout } from '../controllers/checkout.co
 import { updateTicketTypes } from '../controllers/ticketType.controller';
 import { login } from '../controllers/auth.controller';
 import { getDatabaseStats, getSystemLogs, searchTickets } from '../controllers/dev.controller';
+import { createExpense, updateExpense, deleteExpense } from '../controllers/expense.controller';
+import { exportTicketsCSV } from '../controllers/export.controller';
 import { upload, prisma } from '../index';
 
 import { authMiddleware, authorize } from '../middleware/auth.middleware';
+import { loginLimiter, paymentIntentLimiter, checkoutLimiter } from '../middleware/rateLimit.middleware';
+import userRouter from './user.route';
 
 const router = Router();
+
+router.use('/admin/users', userRouter);
 
 // Public routes
 router.get('/store-data', getStoreData); // Compatibility endpoint
 router.get('/events/active', getActiveEvent);
-router.post('/create-payment-intent', createPaymentIntent);
-router.post('/checkout', processCheckout);
-router.post('/auth/login', login);
+router.post('/create-payment-intent', paymentIntentLimiter, createPaymentIntent);
+router.post('/checkout', checkoutLimiter, processCheckout);
+router.post('/auth/login', loginLimiter, login);
 
 // Protected Admin routes (ADMIN and DEV only)
 router.post('/store-data', authMiddleware, authorize(['ADMIN', 'DEV']), updateStoreDataCompat); // Compatibility fallback
@@ -40,6 +46,10 @@ router.get('/admin/events', authMiddleware, authorize(['ADMIN', 'DEV']), getAllE
 router.post('/admin/events', authMiddleware, authorize(['ADMIN', 'DEV']), createEvent);
 router.delete('/admin/events/:id', authMiddleware, authorize(['ADMIN', 'DEV']), deleteEvent);
 router.get('/admin/management/analytics/:eventId', authMiddleware, authorize(['ADMIN', 'DEV']), getEventAnalytics);
+router.post('/admin/management/expenses', authMiddleware, authorize(['ADMIN', 'DEV']), createExpense);
+router.put('/admin/management/expenses/:id', authMiddleware, authorize(['ADMIN', 'DEV']), updateExpense);
+router.delete('/admin/management/expenses/:id', authMiddleware, authorize(['ADMIN', 'DEV']), deleteExpense);
+router.get('/admin/management/export-csv/:eventId', authMiddleware, authorize(['ADMIN', 'DEV']), exportTicketsCSV);
 
 // Validation & Walk-in Registration (Accessible by ADMIN, DEV, and STAFF)
 router.post('/admin/tickets/validate', authMiddleware, authorize(['ADMIN', 'DEV', 'STAFF']), validateTicket);

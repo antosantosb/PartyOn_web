@@ -434,6 +434,17 @@ export default function Admin() {
           </div>
         )}
 
+        {/* Global validation and save error banner at the top of the screen */}
+        {ticketError && (
+          <div className="flex items-start gap-2.5 text-sm text-red-400 bg-red-400/8 border border-red-400/20 rounded-xl px-4 py-3.5 mb-8">
+            <span className="mt-0.5 flex-shrink-0 text-red-400">⚠</span>
+            <div className="space-y-0.5">
+              <p className="font-semibold">No se pudo guardar la configuración</p>
+              <p className="text-white/60 text-xs">{ticketError}</p>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 items-start">
 
           {/* LEFT COLUMN — VISUAL / EDITORIAL */}

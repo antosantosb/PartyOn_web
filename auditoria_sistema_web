@@ -1,0 +1,245 @@
+# 🔍 Auditoría General del Sistema — PartyOn
+> Fecha: 04 de Junio de 2026 | Auditor: Antigravity AI
+> Estado del sistema: **MVP Funcional — Pre-producción**
+
+---
+
+## 1. ✅ Qué está bien implementado
+
+### Backend — Núcleo
+
+| Área | Detalle |
+|---|---|
+| **Arquitectura de pagos (Stripe)** | Flujo de 2 pasos impecable: `createPaymentIntent` → `confirmPayment` (client-side) → `processCheckout` (server-side). El backend re-verifica el `paymentIntent` con Stripe antes de emitir entradas. Nunca confía en el cliente. |
+| **Transacciones atómicas** | El checkout usa `prisma.$transaction()` para decrementar stock y crear entradas de forma atómica. Previene la condición de carrera en ventas concurrentes. |
+| **Control de stock con doble verificación** | El stock se comprueba primero en `createPaymentIntent` (soft check) y de nuevo dentro de la transacción del checkout (authoritative check). |
+| **Servicio Stripe como singleton** | `stripe.service.ts` instancia el SDK una sola vez, valida la clave al inicio y falla de forma ruidosa si no está configurada. |
+| **Sistema de auditoría (AuditLog)** | Todos los eventos críticos se registran: logins fallidos, escaneos, errores de APIs externas, ventas en puerta. |
+| **RBAC con JWT** | El middleware `authMiddleware` + `authorize()` protege rutas por roles (`ADMIN`, `DEV`, `STAFF`). Los tokens JWT incluyen `userId`, `email` y `role`. |
+| **Entrega de tickets asíncrona** | La generación de PDF + QR + envío de email ocurre **después** de responder al usuario, en un proceso fire-and-forget con `try/catch` propio, por lo que un fallo en el email no bloquea la confirmación de compra. |
+| **Gestión de imágenes con Multer** | Subida de imágenes con validación MIME, límite de 8MB, y servicio de archivos estáticos en `/uploads`. |
+| **Soft-delete de TicketTypes** | Los tipos de entrada con ventas asociadas se archivan (`isArchived: true`) en lugar de borrarse, preservando la integridad referencial de los tickets ya emitidos. |
+| **Tipo de entrada "de puerta" protegida** | El `isDoorType` impide el borrado del ticket de taquilla, y su lógica de `processWalkIn` es sólida. |
+| **Schemas compartidos (monorepo)** | El paquete `@partyon/schemas` (con Zod) valida `EventSchema` antes de cualquier escritura en DB en `updateEvent`. |
+| **Timezone management** | Toda la conversión de fechas usa `date-fns-tz` con `Europe/Lisbon` de forma consistente en frontend y backend. |
+
+### Frontend — Storefront
+
+| Área | Detalle |
+|---|---|
+| **Checkout modal con Stripe Elements** | `StripeCheckout.tsx` implementa `PaymentElement` correctamente, suprimiendo campos de billing y pasándolos por `confirmParams`. La documentación inline explica el por qué de cada decisión. |
+| **Store con caché local** | `useStore()` usa `localStorage` como fallback instantáneo mientras carga la API. Previene el "flash" de contenido vacío. |
+| **API client centralizado** | `apiFetch` en `api-client.ts` inyecta el token JWT y maneja el 401 automáticamente redirigiendo al login. |
+| **Protección de rutas por rol** | El componente `RoleGuard` en `App.tsx` redirige a usuarios según su rol antes de renderizar las páginas de admin. |
+
+### Frontend — Panel de Admin
+
+| Área | Detalle |
+|---|---|
+| **Scanner de validación QR** | `ValidationScanner.tsx` usa `@zxing/browser` con refs para evitar scans duplicados (`lastScannedRef`, `isProcessingRef`). El feedback visual (pantalla verde/roja full-screen) es correcto para entornos de portería. |
+| **Venta en puerta (Walk-in)** | Completamente implementada: modal, selección de método de pago (EFECTIVO/MBWAY), precio editable, y registro en BD. |
+| **Configuración modular** | La página `Configuration.tsx` está bien descompuesta en sub-componentes: `LogoConfig`, `EventInfoConfig`, `ColorsConfig`, etc. |
+| **Validaciones en el frontend de la configuración** | Se validan fechas de inicio/fin, solapamientos de periodos de venta, campos obligatorios, y hay confirmación antes de guardar un evento activo. |
+
+---
+
+## 2. 🟡 Qué se puede mejorar
+
+### Backend
+
+| Problema | Impacto | Sugerencia |
+|---|---|---|
+| **`updateStoreDataCompat` en `api.route.ts`** | Deuda técnica. Una función de negocio vive en el fichero de rutas. | Mover a `admin.controller.ts` o eliminarlo cuando el frontend migre completamente a las rutas PATCH. |
+| **`any` types en controladores** | Baja seguridad de tipos. `req.body`, `event.expenses`, `event.tickets` se tipan como `any`. | Crear interfaces o inferir tipos de Prisma (`Prisma.TicketGetPayload`). |
+| **`console.log` de credenciales en login** | Riesgo de seguridad en producción. `console.log('Login attempt for:', email)` escribe emails en logs del servidor. | Eliminar o reemplazar con un logger estructurado (pino, winston) que filtre datos sensibles. |
+| **`from: 'onboarding@resend.dev'`** | No profesional para producción. El email remitente usa el dominio de pruebas de Resend. | Configurar dominio propio verificado en Resend (`tickets@partyon.pt`). |
+| **Sin rate-limiting en endpoints críticos** | Vulnerabilidad. `/auth/login` y `/checkout` son vulnerables a fuerza bruta y spam de pagos. | Implementar `express-rate-limit`. |
+| **`prisma.$queryRaw\`SELECT 1\`` en health check** | Menor: no es un problema grave, pero usar `prisma.$connect()` o un modelo simple es más limpio. | Usar `await prisma.event.count()` como verificación. |
+| **Sin paginación en `getSystemLogs`** | Escalabilidad. Devuelve los últimos 50 logs sin cursor. | Añadir paginación con cursor o parámetro `limit`. |
+| **`docker-compose.yml` usa `--accept-data-loss`** | Peligroso en producción. El comando de inicio es `prisma db push --accept-data-loss`. | Cambiar a `prisma migrate deploy` en producción. |
+| **Password hardcodeada en docker-compose** | Seguridad básica. `POSTGRES_PASSWORD: adminpassword` está en texto plano. | Usar variables de entorno secretas o Docker Secrets. |
+| **Sin webhook de Stripe** | Resiliencia. Si el usuario cierra el navegador después del pago pero antes del checkout final, la entrada nunca se genera. | Implementar `POST /webhooks/stripe` para `payment_intent.succeeded`. |
+
+### Frontend
+
+| Problema | Impacto | Sugerencia |
+|---|---|---|
+| **`any` types generalizados** | `draft`, `allEvents`, y muchas props de componentes usan `any`. | Crear tipos `Event`, `Theme`, `TicketType` compartidos. |
+| **`window.confirm` y `alert` en UI de admin** | UX pobre. Los diálogos nativos del navegador rompen la estética del panel. | Reemplazar con modales/toasts de Sonner o similar. |
+| **El botón "Registrar Gasto" está desconectado** | En `ManagementDashboard.tsx` el botón `+` existe pero no abre ningún modal ni ejecuta acción. | Implementar el modal de creación de gastos. |
+| **`e.status` en lugar de `e.isPublished`** | Bug potencial en `ManagementDashboard.tsx` (línea 42). Se busca `e.status === 'ACTIVE'` pero el modelo usa `isPublished: Boolean`. | Corregir para usar `e.isPublished`. |
+| **Polling cada 3s en DevDashboard** | Ineficiente. El `setInterval(fetchData, 3000)` hace peticiones constantes al backend. | Implementar WebSocket o Server-Sent Events para actualizaciones en tiempo real. |
+| **`localStorage` para el token JWT** | Riesgo XSS. Aunque hay mitigantes, un token en localStorage es vulnerable a scripts de terceros. | Para producción, evaluar `httpOnly cookies`. |
+| **Sin manejo de error 403 en `apiFetch`** | El cliente sólo intercepta el 401. Un 403 pasa silenciosamente. | Añadir manejo de 403 para mostrar mensaje claro. |
+| **`isUploading` bloquea todo el formulario** | UX. El estado de carga de imagen bloquea el guardado completo. | Mostrar sólo el spinner junto al campo de imagen. |
+
+---
+
+## 3. 🔴 Qué falta casi en su totalidad
+
+### 3.1 Gestión de Usuarios (`/admin/users`)
+El modelo `User` existe en el schema de Prisma con campos `email`, `password`, `role`, pero **no hay ninguna interfaz** para gestionarlo:
+- ❌ No hay página de listado de usuarios.
+- ❌ No hay formulario para crear usuarios (staff/admin).
+- ❌ No hay capacidad de cambiar contraseñas desde el panel.
+- ❌ No hay endpoints CRUD para el modelo `User` en el backend.
+- ❌ La única manera de crear usuarios es mediante Prisma Studio o un seed manual.
+
+> **Impacto crítico**: En producción, añadir o eliminar a un miembro del equipo es imposible sin acceso directo a la base de datos.
+
+### 3.2 Gestión de Gastos Operativos
+El modelo `Expense` está en el schema y el `ManagementDashboard` los muestra, pero **no se pueden crear ni editar**:
+- ❌ No hay formulario para registrar un gasto (VENUE, DJ, SECURITY, etc.).
+- ❌ No hay endpoint `POST /admin/events/:id/expenses`.
+- ❌ No hay endpoint `DELETE /admin/events/:id/expenses/:expenseId`.
+- El botón "+ Registrar Gasto" en el dashboard es un **mock visual sin funcionalidad**.
+
+> **Impacto crítico**: El P&L (Beneficio Neto) siempre mostrará gastos a cero hasta que esto esté implementado.
+
+### 3.3 Sistema de Recuperación de Contraseña
+- ❌ No existe `/auth/forgot-password`.
+- ❌ No existe `/auth/reset-password`.
+- ❌ Si un admin pierde su contraseña, necesita acceso directo a la BD.
+
+### 3.4 Webhook de Stripe
+- ❌ Sin `POST /webhooks/stripe` para el evento `payment_intent.succeeded`.
+- **El riesgo**: si un usuario paga correctamente pero cierra el navegador antes de que el frontend llame a `/checkout`, el dinero llega a Stripe pero **la entrada nunca se genera**. Este es un fallo de negocio crítico.
+
+### 3.5 Newsletter / Suscriptores
+Los campos `showNewsletter`, `newsletterText`, `newsletterSubtext` existen en el modelo Event y se renderizan en el Storefront, pero:
+- ❌ No hay modelo `Subscriber` en el schema de Prisma.
+- ❌ No hay endpoint `POST /api/subscribe`.
+- ❌ Los emails de los suscriptores no se guardan en ningún sitio.
+- El formulario de newsletter es actualmente **decorativo**.
+
+### 3.6 Galería de Imágenes en el Backoffice
+El endpoint `PATCH /admin/events/:id/gallery` existe y el schema de `GalleryImage` está definido, pero la **UI de gestión** no está completada:
+- ❌ No hay interfaz para subir y ordenar imágenes de la galería desde el panel de configuración.
+- ❌ No hay drag-and-drop para reordenar imágenes.
+
+### 3.7 Cancelación y Reembolso de Entradas
+- ❌ No hay flujo de cancelación de entradas (`CANCELLED`).
+- ❌ No hay integración con Stripe para procesar reembolsos.
+- ❌ No hay página de soporte para que el admin gestione incidencias post-venta.
+
+### 3.8 Notificaciones y Alertas en Tiempo Real
+- ❌ No hay sistema de notificaciones push para el admin cuando se realiza una venta.
+- ❌ No hay alertas cuando el stock llega a un umbral crítico.
+
+---
+
+## 4. 🚀 Qué hacer antes de ir a producción
+
+> Lista ordenada por prioridad. Los primeros son **bloqueantes**, los últimos son muy recomendados.
+
+### 🛑 BLOQUEANTES (sin esto, no se puede lanzar)
+
+#### P1 — Webhook de Stripe
+```
+POST /webhooks/stripe
+Evento: payment_intent.succeeded
+Acción: Si no existe un Order para ese paymentIntentId → crear Order + Tickets + enviar email
+```
+Sin esto, cualquier interrupción de red entre el pago y el checkout genera un pago sin entrada.
+
+#### P2 — Verificar la llave LIVE de Stripe
+- Cambiar `sk_test_...` → `sk_live_...` en el `.env` de producción.
+- Cambiar `VITE_STRIPE_PUBLIC_KEY` a la clave pública live.
+- **Testear un pago real de 0.01€** antes del evento.
+
+#### P3 — Dominio de email verificado en Resend
+- Cambiar `from: 'onboarding@resend.dev'` → `from: 'tickets@tudominio.com'`.
+- Sin esto, los emails de confirmación irán a spam o serán rechazados.
+
+#### P4 — Al menos 1 usuario ADMIN real creado
+- Crear el usuario administrador vía seed o Prisma Studio con contraseña segura.
+- Eliminar cualquier usuario de demo/test.
+
+#### P5 — Variables de entorno de producción seguras
+- `JWT_SECRET`: mínimo 64 caracteres aleatorios.
+- `DATABASE_URL`: apuntando a la BD de producción.
+- `POSTGRES_PASSWORD`: no debe ser `adminpassword`.
+- `FRONTEND_URL`: configurada con el dominio real para restringir CORS.
+
+---
+
+### ⚠️ MUY RECOMENDADOS
+
+#### P6 — Rate limiting en endpoints de autenticación y pago
+```bash
+npm install express-rate-limit
+```
+Aplicar en:
+- `POST /auth/login` → máx. 10 intentos por 15 min por IP.
+- `POST /create-payment-intent` → máx. 5 por minuto por IP.
+- `POST /checkout` → máx. 3 por minuto por IP.
+
+#### P7 — Eliminar `console.log('Login attempt for:', email)`
+Riesgo de filtrar emails de usuarios en los logs del servidor.
+
+#### P8 — Cambiar `prisma db push --accept-data-loss` por `migrate deploy`
+En `docker-compose.yml` y el Dockerfile:
+```yaml
+command: sh -c "npx prisma migrate deploy && node dist/index.js"
+```
+`db push --accept-data-loss` puede destruir datos en producción.
+
+#### P9 — Configurar HTTPS con certificado TLS
+- El backend debe estar detrás de un proxy (Nginx, Caddy, Traefik) con TLS.
+- Stripe **rechazará** el webhook si la URL no es HTTPS.
+
+#### P10 — Backups de la base de datos
+- Configurar un cron job que ejecute `pg_dump` y lo guarde fuera del servidor.
+- O usar un proveedor de PostgreSQL gestionado (Railway, Supabase, Render) que incluya backups automáticos.
+
+#### P11 — Crear el usuario de gestión de staff antes del evento
+El sistema no tiene UI para esto. Se debe hacer manualmente vía Prisma Studio o script:
+```ts
+// backend/src/scripts/create-user.ts
+await prisma.user.create({
+  data: { email: 'staff@partyon.pt', password: bcrypt.hashSync('...', 10), role: 'STAFF' }
+});
+```
+
+---
+
+### 📋 CHECKLIST FINAL PRE-EVENTO
+
+```
+[ ] Stripe configurado en modo LIVE y testado con pago real
+[ ] Email remitente verificado en Resend (dominio propio)
+[ ] HTTPS activo en backend y frontend
+[ ] JWT_SECRET generado con entropía suficiente
+[ ] CORS restringido a FRONTEND_URL real
+[ ] Rate limiting activo en login y checkout
+[ ] Webhook de Stripe configurado y verificado
+[ ] Al menos 1 admin y los staff del evento creados en el sistema
+[ ] Contraseñas de BD y servicios cambiadas (no usar 'adminpassword')
+[ ] Backup de BD configurado antes del evento
+[ ] Testar el flujo completo de compra en producción (comprar 1 entrada real)
+[ ] Testar el scanner de QR con una entrada real
+[ ] Testar la venta en puerta con ambos métodos de pago
+[ ] Verificar que los emails de ticket llegan y no van a spam
+[ ] Revisar logs en DevDashboard durante los primeros minutos
+```
+
+---
+
+## Resumen Ejecutivo
+
+| Categoría | Estado |
+|---|---|
+| Núcleo de pagos (Stripe) | 🟢 Producción-ready |
+| Checkout y emisión de tickets | 🟢 Producción-ready |
+| Scanner de validación | 🟢 Producción-ready |
+| Venta en puerta (Walk-in) | 🟢 Producción-ready |
+| Configuración del evento | 🟢 Producción-ready |
+| Análisis financiero (visualización) | 🟢 MVP funcional |
+| Autenticación y RBAC | 🟡 Funcional, falta endurecimiento |
+| Gestión de usuarios | 🔴 No implementada |
+| Gestión de gastos | 🔴 Solo visualización, no creación |
+| Webhook de Stripe | 🔴 Crítico — no existe |
+| Newsletter | 🔴 Solo UI decorativa |
+| Recuperación de contraseña | 🔴 No existe |
+| Seguridad (rate-limiting, HTTPS) | 🔴 Pendiente de configurar |
+| Backups de BD | 🔴 No configurados |
