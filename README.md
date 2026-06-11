@@ -40,6 +40,7 @@
 |---|---|
 | Event landing page (dynamic branding, gallery, lineup) | ✅ Done |
 | Stripe checkout with PaymentElement (2-step flow) | ✅ Done |
+| GDPR-compliant marketing consent checkbox (unbundled) | ✅ Done |
 | PDF ticket generation with branded QR code | ✅ Done |
 | Automated email delivery via Resend | ✅ Done |
 | Mobile-responsive layout | ✅ Done |
@@ -54,6 +55,7 @@
 | QR Scanner for ticket validation | ✅ Done |
 | Walk-in door sale (cash / MBWay) | ✅ Done |
 | Management dashboard (revenue, expenses chart) | ✅ Done |
+| Export global marketing emails list (CSV) | ✅ Done |
 | Expense entry (create/delete) | 🔴 Missing |
 | User management (CRUD for staff/admin) | 🔴 Missing |
 | Gallery image management (upload + reorder) | 🔴 Partial |

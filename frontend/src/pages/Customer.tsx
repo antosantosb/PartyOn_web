@@ -8,6 +8,7 @@ import { TicketSection } from '../components/sections/TicketSection';
 // Branding sections temporarily disabled for Plan A
 import { Footer } from '../components/layout/Footer';
 import { CheckoutModal } from '../components/ticket/CheckoutModal';
+import { getCleanImageUrl } from '../config/api';
 
 export default function Customer() {
   const { eventData, theme, loading } = useStore();
@@ -40,7 +41,7 @@ export default function Customer() {
     return (
       <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center select-none">
         <img
-          src={(eventData?.logoText1 && (eventData.logoText1.startsWith('http') || eventData.logoText1.startsWith('/'))) ? eventData.logoText1 : "/logo.PNG"}
+          src={(eventData?.logoText1 && (eventData.logoText1.startsWith('http') || eventData.logoText1.startsWith('/'))) ? getCleanImageUrl(eventData.logoText1) : "/logo.PNG"}
           alt="PartyOn Loading..."
           className="h-16 w-auto object-contain animate-pulse duration-1000"
         />

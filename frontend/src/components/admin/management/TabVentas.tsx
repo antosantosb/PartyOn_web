@@ -5,11 +5,12 @@ interface TabVentasProps {
   analytics: AnalyticsData;
   formatCurrency: (val: number) => string;
   onExportCSV: () => void;
+  onExportMarketingCSV: () => void;
   selectedEventId: string;
   primaryColor: string;
 }
 
-export default function TabVentas({ analytics, formatCurrency, onExportCSV, selectedEventId, primaryColor }: TabVentasProps) {
+export default function TabVentas({ analytics, formatCurrency, onExportCSV, onExportMarketingCSV, selectedEventId, primaryColor }: TabVentasProps) {
   // Render sales curve
   const renderLineChart = () => {
     if (!analytics.salesByDay || analytics.salesByDay.length === 0) {
@@ -54,6 +55,14 @@ export default function TabVentas({ analytics, formatCurrency, onExportCSV, sele
           <line x1={padding} y1={height / 2} x2={width - padding} y2={height / 2} stroke="#2a2a2a" strokeWidth="2" />
           <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="#000000" strokeWidth="3" />
 
+          {/* Y Axis line */}
+          <line x1={padding} y1={padding} x2={padding} y2={height - padding} stroke="#000000" strokeWidth="3" />
+
+          {/* Y-axis Labels */}
+          <text x={padding - 8} y={padding + 3} fill="#7a7269" fontSize="8" fontFamily="monospace" textAnchor="end">{maxValue}</text>
+          <text x={padding - 8} y={height / 2 + 3} fill="#7a7269" fontSize="8" fontFamily="monospace" textAnchor="end">{Math.round(maxValue / 2)}</text>
+          <text x={padding - 8} y={height - padding + 3} fill="#7a7269" fontSize="8" fontFamily="monospace" textAnchor="end">0</text>
+
           {/* Line path */}
           {pathD && (
             <path 
@@ -65,6 +74,43 @@ export default function TabVentas({ analytics, formatCurrency, onExportCSV, sele
               strokeLinejoin="miter"
             />
           )}
+
+          {/* X-axis Ticks and Labels */}
+          {points.map((p, i) => {
+            const showLabel = 
+              i === 0 || 
+              i === points.length - 1 || 
+              (points.length > 2 && i === Math.floor(points.length / 2)) ||
+              (points.length > 5 && (i === Math.floor(points.length / 4) || i === Math.floor(3 * points.length / 4)));
+
+            if (!showLabel) return null;
+
+            return (
+              <g key={`x-tick-${i}`}>
+                <line 
+                  x1={xCoords[i]} 
+                  y1={height - padding} 
+                  x2={xCoords[i]} 
+                  y2={height - padding + 5} 
+                  stroke="#2a2a2a" 
+                  strokeWidth="2" 
+                />
+                <text 
+                  x={xCoords[i]} 
+                  y={height - padding + 15} 
+                  fill="#7a7269" 
+                  fontSize="8" 
+                  fontFamily="monospace" 
+                  textAnchor="middle"
+                >
+                  {(() => {
+                    const parts = p.date.split('-');
+                    return parts.length === 3 ? `${parts[2]}/${parts[1]}` : p.date;
+                  })()}
+                </text>
+              </g>
+            );
+          })}
 
           {/* Points */}
           {points.map((p, i) => (
@@ -80,10 +126,8 @@ export default function TabVentas({ analytics, formatCurrency, onExportCSV, sele
             />
           ))}
         </svg>
-        <div className="flex justify-between text-[10px] font-mono text-[#7a7269] uppercase mt-2">
-          <span>{points[0]?.date}</span>
-          <span className="text-white font-bold">Curva de Ventas (Acumulada)</span>
-          <span>{points[points.length - 1]?.date}</span>
+        <div className="text-center text-[10px] font-mono text-white mt-2 uppercase font-bold">
+          Curva de Ventas (Acumulada por Fechas)
         </div>
       </div>
     );
@@ -93,18 +137,28 @@ export default function TabVentas({ analytics, formatCurrency, onExportCSV, sele
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
-      <div className="flex items-center justify-between border-b-4 border-black pb-4">
+      <div className="flex items-center justify-between border-b-4 border-black pb-4 flex-wrap gap-4">
         <h2 className="text-2xl font-display font-black text-white uppercase flex items-center gap-3">
           <TrendingUp className="w-6 h-6 text-[#7a7269]" /> Rendimiento de Ventas
         </h2>
-        <button 
-          onClick={onExportCSV}
-          disabled={!selectedEventId}
-          style={{ backgroundColor: primaryColor }}
-          className="brut-btn text-[10px] text-white"
-        >
-          <Download className="w-4 h-4" /> Exportar CSV
-        </button>
+        <div className="flex items-center gap-4 flex-wrap">
+          <button 
+            onClick={onExportCSV}
+            disabled={!selectedEventId}
+            style={{ backgroundColor: primaryColor }}
+            className="brut-btn text-[10px] text-white"
+          >
+            <Download className="w-4 h-4" /> Exportar CSV
+          </button>
+          <button 
+            onClick={onExportMarketingCSV}
+            disabled={!selectedEventId}
+            className="brut-btn text-[10px] text-white bg-black border-4 hover:brightness-110"
+            style={{ borderColor: primaryColor }}
+          >
+            <Download className="w-4 h-4" /> Exportar Emails Publicidad (CSV)
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

@@ -58,10 +58,11 @@ interface CardFormProps {
   ticketId: string;
   quantity: number;
   selectedTicket: any;
+  marketingConsent: boolean;
   onSuccess: (paymentIntentId: string) => void;
 }
 
-function CardForm({ theme, buyerName, buyerEmail, ticketId, quantity, selectedTicket, onSuccess }: CardFormProps) {
+function CardForm({ theme, buyerName, buyerEmail, ticketId, quantity, selectedTicket, marketingConsent, onSuccess }: CardFormProps) {
   const stripe = useStripe();
   const elements = useElements();
   const [isProcessing, setIsProcessing] = useState(false);
@@ -159,7 +160,8 @@ function CardForm({ theme, buyerName, buyerEmail, ticketId, quantity, selectedTi
             buyerEmail,
             ticketId,
             quantity,
-            paymentIntentId: paymentIntent.id
+            paymentIntentId: paymentIntent.id,
+            marketingConsent
           })
         });
         const checkoutData = await checkoutRes.json();
@@ -246,12 +248,13 @@ interface StripeCheckoutProps {
   ticketId: string;
   quantity: number;
   selectedTicket: any;
+  marketingConsent: boolean;
   onClose: () => void;
   onSuccess: (paymentIntentId: string) => void;
 }
 
 export function StripeCheckout({
-  theme, buyerName, buyerEmail, ticketId, quantity, selectedTicket, onClose, onSuccess
+  theme, buyerName, buyerEmail, ticketId, quantity, selectedTicket, marketingConsent, onClose, onSuccess
 }: StripeCheckoutProps) {
   const isPlaceholderKey = import.meta.env.VITE_STRIPE_PUBLIC_KEY?.includes('REPLACE_ME');
 
@@ -328,6 +331,7 @@ export function StripeCheckout({
           ticketId={ticketId}
           quantity={quantity}
           selectedTicket={selectedTicket}
+          marketingConsent={marketingConsent}
           onSuccess={onSuccess}
         />
 

@@ -39,6 +39,7 @@ export const CheckoutSchema = z.object({
   ticketId: z.string().min(1, "Tipo de entrada obligatorio"),
   quantity: z.number().int().min(1, "Mínimo 1 entrada").max(10, "Máximo 10 entradas"),
   paymentIntentId: z.string().optional().nullable(),
+  marketingConsent: z.boolean().default(false),
 });
 
 export const LoginSchema = z.object({

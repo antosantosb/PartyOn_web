@@ -32,6 +32,7 @@ export function CheckoutModal({
   const [nameError, setNameError] = useState('');
   const [emailError, setEmailError] = useState('');
   const [infoModal, setInfoModal] = useState<'terms' | 'privacy' | null>(null);
+  const [marketingConsent, setMarketingConsent] = useState(false);
 
   const totalPrice = (selectedTicket.price * quantity).toFixed(2);
 
@@ -74,6 +75,7 @@ export function CheckoutModal({
     setNameError('');
     setEmailError('');
     setInfoModal(null);
+    setMarketingConsent(false);
   };
 
   return (
@@ -165,25 +167,53 @@ export function CheckoutModal({
                         required
                       />
 
-                      <p className="text-[11px] text-white/50 leading-relaxed text-center mt-4 mb-2">
+                      <p className="text-[11px] text-white/50 leading-relaxed text-center mt-4 mb-4">
                         Al continuar, aceptas nuestros{' '}
                         <button
                           type="button"
                           onClick={() => setInfoModal('terms')}
                           className="text-accent underline hover:text-accent/80 transition-colors font-semibold"
                         >
-                          términos
+                          Términos y Condiciones
                         </button>{' '}
-                        y la{' '}
+                        y nuestra{' '}
                         <button
                           type="button"
                           onClick={() => setInfoModal('privacy')}
                           className="text-accent underline hover:text-accent/80 transition-colors font-semibold"
                         >
-                          política de privacidad
-                        </button>
-                        .
+                          Política de Privacidad
+                        </button>{' '}
+                        para fines de gestión, emisión de entradas y control de accesos.
                       </p>
+
+                      {/* Marketing consent checkbox */}
+                      <label className="flex items-start gap-3 cursor-pointer group mt-4 mb-4 select-none">
+                        <input
+                          type="checkbox"
+                          checked={marketingConsent}
+                          onChange={(e) => setMarketingConsent(e.target.checked)}
+                          className="sr-only"
+                        />
+                        <div
+                          className="w-6 h-6 flex-shrink-0 border-4 border-black rounded-none transition-colors duration-150 flex items-center justify-center bg-[#0a0a0a]"
+                          style={{
+                            backgroundColor: marketingConsent ? (theme.primaryColor || '#e63329') : '#0a0a0a',
+                          }}
+                        >
+                          {marketingConsent && (
+                            <svg className="w-4 h-4 text-black font-bold" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={4}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </div>
+                        <span 
+                          className="text-[11px] text-white/70 leading-normal tracking-wide"
+                          style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}
+                        >
+                          Me gustaría recibir novedades, descuentos y comunicaciones comerciales sobre los próximos eventos de PartyOn por correo electrónico. (Puedes revocar este consentimiento en cualquier momento).
+                        </span>
+                      </label>
 
                       <Button
                         type="submit"
@@ -228,6 +258,7 @@ export function CheckoutModal({
                       ticketId={selectedTicket.id}
                       quantity={quantity}
                       selectedTicket={selectedTicket}
+                      marketingConsent={marketingConsent}
                       onClose={handleClose}
                       onSuccess={handleSuccess}
                     />

@@ -95,6 +95,26 @@ export default function ManagementDashboard() {
     }
   };
 
+  const handleExportMarketingCSV = async () => {
+    try {
+      const res = await apiFetch(`/admin/management/export-marketing`);
+      if (!res.ok) throw new Error("Error generating CSV");
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `marketing-global.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(err);
+      alert("No se pudo exportar el listado de correos de marketing.");
+    }
+  };
+
   const handleOpenCreateModal = () => {
     setModalMode('create');
     setEditingExpense(null);
@@ -252,6 +272,7 @@ export default function ManagementDashboard() {
                 analytics={analytics} 
                 formatCurrency={formatCurrency} 
                 onExportCSV={handleExportCSV} 
+                onExportMarketingCSV={handleExportMarketingCSV}
                 selectedEventId={selectedEventId} 
                 primaryColor={primaryColor}
               />
@@ -262,6 +283,7 @@ export default function ManagementDashboard() {
                 analytics={analytics} 
                 formatCurrency={formatCurrency} 
                 onExportCSV={handleExportCSV} 
+                onExportMarketingCSV={handleExportMarketingCSV}
                 selectedEventId={selectedEventId} 
                 primaryColor={primaryColor}
               />

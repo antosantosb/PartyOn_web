@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { getCleanImageUrl } from '../../config/api';
 
 interface NavProps {
   ctaLabel?: string;
@@ -46,7 +47,7 @@ export function Nav({ ctaLabel = 'ENTRADAS', logoUrl }: NavProps) {
         {/* Logo */}
         <Link to="/" style={{ display: 'flex', alignItems: 'center' }}>
           <img
-            src={(logoUrl && (logoUrl.startsWith('http') || logoUrl.startsWith('/'))) ? logoUrl : "/logo.PNG"}
+            src={(logoUrl && (logoUrl.startsWith('http') || logoUrl.startsWith('/'))) ? getCleanImageUrl(logoUrl) : "/logo.PNG"}
             alt="PartyOn"
             style={{ height: '72px', maxHeight: '90%', maxWidth: '100%', objectFit: 'contain' }}
             onError={(e) => { e.currentTarget.style.display = 'none'; }}

@@ -109,16 +109,17 @@ model TicketType {
 }
 
 model Order {
-  id            String   @id @default(cuid())
-  eventId       String
-  event         Event    @relation(fields: [eventId], references: [id])
-  customerName  String
-  customerEmail String
-  totalPaid     Float
-  paymentIntent String?  @unique
-  status        String   @default("COMPLETED")
-  createdAt     DateTime @default(now())
-  tickets       Ticket[]
+  id               String   @id @default(cuid())
+  eventId          String
+  event            Event    @relation(fields: [eventId], references: [id])
+  customerName     String
+  customerEmail    String
+  totalPaid        Float
+  paymentIntent    String?  @unique
+  status           String   @default("COMPLETED")
+  marketingConsent Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  tickets          Ticket[]
 }
 
 model Ticket {
@@ -131,11 +132,12 @@ model Ticket {
   orderId String?
   order   Order?  @relation(fields: [orderId], references: [id])
 
-  email         String
-  name          String
-  status        String  @default("VALID") // VALID, USED, CANCELLED
-  paymentIntent String?
-  pricePaid     Float   @default(0)
+  email            String
+  name             String
+  status           String  @default("VALID") // VALID, USED, CANCELLED
+  paymentIntent    String?
+  pricePaid        Float   @default(0)
+  marketingConsent Boolean @default(false)
 
   scannedAt   DateTime?
   scannedById String?

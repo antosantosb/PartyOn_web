@@ -1,4 +1,5 @@
 import React from 'react';
+import { getCleanImageUrl } from '../../config/api';
 
 interface LogoConfigProps {
   logoText1: string;
@@ -14,7 +15,7 @@ export function LogoConfig({ logoText1, isUploading, handleImageUpload, onChange
       <div className="flex flex-col gap-4">
         <div className="flex items-center gap-4">
           <img
-            src={(logoText1 && (logoText1.startsWith('http') || logoText1.startsWith('/'))) ? logoText1 : '/logo.PNG'}
+            src={(logoText1 && (logoText1.startsWith('http') || logoText1.startsWith('/'))) ? getCleanImageUrl(logoText1) : '/logo.PNG'}
             alt="Logo del evento"
             className="h-16 w-auto object-contain bg-black/40 p-2 border border-white/10"
             onError={(e) => { e.currentTarget.src = '/logo.PNG'; }}

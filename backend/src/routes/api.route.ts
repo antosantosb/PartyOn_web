@@ -18,7 +18,7 @@ import { updateTicketTypes } from '../controllers/ticketType.controller';
 import { login } from '../controllers/auth.controller';
 import { getDatabaseStats, getSystemLogs, searchTickets } from '../controllers/dev.controller';
 import { createExpense, updateExpense, deleteExpense } from '../controllers/expense.controller';
-import { exportTicketsCSV } from '../controllers/export.controller';
+import { exportTicketsCSV, exportMarketingEmailsCSV } from '../controllers/export.controller';
 import { upload, prisma } from '../index';
 
 import { authMiddleware, authorize } from '../middleware/auth.middleware';
@@ -51,6 +51,7 @@ router.post('/admin/management/expenses', authMiddleware, authorize(['ADMIN', 'D
 router.put('/admin/management/expenses/:id', authMiddleware, authorize(['ADMIN', 'DEV']), updateExpense);
 router.delete('/admin/management/expenses/:id', authMiddleware, authorize(['ADMIN', 'DEV']), deleteExpense);
 router.get('/admin/management/export-csv/:eventId', authMiddleware, authorize(['ADMIN', 'DEV']), exportTicketsCSV);
+router.get('/admin/management/export-marketing', authMiddleware, authorize(['ADMIN', 'DEV']), exportMarketingEmailsCSV);
 
 // Validation & Walk-in Registration (Accessible by ADMIN, DEV, and STAFF)
 router.get('/admin/events/:eventId/attendance', authMiddleware, authorize(['ADMIN', 'DEV', 'STAFF']), getEventAttendance);
@@ -114,7 +115,7 @@ async function updateStoreDataCompat(req: any, res: any) {
       });
     }
 
-    res.json({ success: true, event: updatedEvent });
+    res.json({ success: true, event: { ...updatedEvent, status: updatedEvent.isPublished ? 'ACTIVE' : 'DRAFT' } });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Failed to update store data compatibility" });

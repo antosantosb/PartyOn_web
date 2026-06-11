@@ -64,7 +64,7 @@ export const getStoreData = async (req: Request, res: Response) => {
       }
     }
 
-    res.json({ eventData: event, theme: event.theme });
+    res.json({ eventData: { ...event, status: event.isPublished ? 'ACTIVE' : 'DRAFT' }, theme: event.theme });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Failed to fetch event data" });
@@ -90,9 +90,9 @@ export const getActiveEvent = async (req: Request, res: Response) => {
           galleryImages: { orderBy: { order: 'asc' } }
         }
       });
-      return res.json({ event: fallback || null });
+      return res.json({ event: fallback ? { ...fallback, status: fallback.isPublished ? 'ACTIVE' : 'DRAFT' } : null });
     }
-    res.json({ event });
+    res.json({ event: { ...event, status: event.isPublished ? 'ACTIVE' : 'DRAFT' } });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Failed to fetch active event" });
@@ -147,7 +147,7 @@ export const updateEvent = async (req: Request, res: Response) => {
       }
     });
 
-    res.json({ success: true, event: updated });
+    res.json({ success: true, event: { ...updated, status: updated.isPublished ? 'ACTIVE' : 'DRAFT' } });
   } catch (error: any) {
     console.error("[updateEvent] Error:", error);
     res.status(500).json({ error: "Error al actualizar el evento" });
@@ -226,7 +226,7 @@ export const getAllEvents = async (req: Request, res: Response) => {
       orderBy: { createdAt: 'desc' },
       include: { ticketTypes: { where: { isArchived: false } }, theme: true }
     });
-    res.json({ events });
+    res.json({ events: events.map(e => ({ ...e, status: e.isPublished ? 'ACTIVE' : 'DRAFT' })) });
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch events" });
   }
@@ -258,7 +258,7 @@ export const createEvent = async (req: Request, res: Response) => {
       },
       include: { ticketTypes: true, theme: true }
     });
-    res.json({ event: newEvent });
+    res.json({ event: { ...newEvent, status: newEvent.isPublished ? 'ACTIVE' : 'DRAFT' } });
   } catch (error) {
     res.status(500).json({ error: "Failed to create event" });
   }

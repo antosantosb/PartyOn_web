@@ -127,7 +127,7 @@ export const createPaymentIntent = async (req: Request, res: Response) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const processCheckout = async (req: Request, res: Response) => {
-  const { buyerName, buyerEmail, ticketId, quantity, paymentIntentId } = req.body;
+  const { buyerName, buyerEmail, ticketId, quantity, paymentIntentId, marketingConsent } = req.body;
 
   // Validate required fields
   if (!buyerName || !buyerEmail || !ticketId || !quantity || quantity < 1) {
@@ -214,7 +214,8 @@ export const processCheckout = async (req: Request, res: Response) => {
           customerEmail: buyerEmail,
           totalPaid: ticketType.price * quantity,
           paymentIntent: paymentIntentId ?? null,
-          status: 'COMPLETED'
+          status: 'COMPLETED',
+          marketingConsent: !!marketingConsent
         }
       });
 
@@ -231,6 +232,7 @@ export const processCheckout = async (req: Request, res: Response) => {
             status: 'VALID',
             paymentIntent: paymentIntentId ?? null,
             pricePaid: ticketType.price,
+            marketingConsent: !!marketingConsent
           }
         });
         created.push(ticket);

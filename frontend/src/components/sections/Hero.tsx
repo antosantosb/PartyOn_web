@@ -1,4 +1,5 @@
 import { MapPin, Clock } from 'lucide-react';
+import { getCleanImageUrl } from '../../config/api';
 
 interface HeroProps {
   eventData: {
@@ -27,8 +28,8 @@ export function Hero({ eventData, theme }: HeroProps) {
     document.getElementById('lineup-section')?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const desktopBg = theme.backgroundImage || '/hero.jpg';
-  const mobileBg = theme.backgroundImageMobile || desktopBg;
+  const desktopBg = getCleanImageUrl(theme.backgroundImage || '/hero.jpg');
+  const mobileBg = getCleanImageUrl(theme.backgroundImageMobile) || desktopBg;
 
   const formatTime = (isoString?: string | null) => {
     if (!isoString) return '';

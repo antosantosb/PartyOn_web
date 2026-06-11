@@ -6,11 +6,12 @@ interface TabAnalisisProps {
   analytics: AnalyticsData;
   formatCurrency: (val: number) => string;
   onExportCSV: () => void;
+  onExportMarketingCSV: () => void;
   selectedEventId: string;
   primaryColor: string;
 }
 
-export default function TabAnalisis({ analytics, formatCurrency, onExportCSV, selectedEventId, primaryColor }: TabAnalisisProps) {
+export default function TabAnalisis({ analytics, formatCurrency, onExportCSV, onExportMarketingCSV, selectedEventId, primaryColor }: TabAnalisisProps) {
   // Grouped expenses for Category Donut
   const groupedExpenses = analytics.expenses.reduce((acc: { [key: string]: number }, exp) => {
     const cat = exp.category || 'GENERAL';
@@ -39,11 +40,25 @@ export default function TabAnalisis({ analytics, formatCurrency, onExportCSV, se
     return (
       <div className="relative border-4 border-black p-4 bg-[#111111] rounded-none">
         <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto overflow-visible">
-          <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="#000" strokeWidth="3" />
+          {/* Horizontal grid lines */}
+          <line x1={padding} y1={padding} x2={width - padding} y2={padding} stroke="#2a2a2a" strokeWidth="2" />
+          <line x1={padding} y1={height / 2} x2={width - padding} y2={height / 2} stroke="#2a2a2a" strokeWidth="2" />
+          <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="#000000" strokeWidth="3" />
+
+          {/* Y Axis line */}
+          <line x1={padding} y1={padding} x2={padding} y2={height - padding} stroke="#000000" strokeWidth="3" />
+
+          {/* Y-axis Labels */}
+          <text x={padding - 8} y={padding + 3} fill="#7a7269" fontSize="8" fontFamily="monospace" textAnchor="end">{maxVal}</text>
+          <text x={padding - 8} y={height / 2 + 3} fill="#7a7269" fontSize="8" fontFamily="monospace" textAnchor="end">{Math.round(maxVal / 2)}</text>
+          <text x={padding - 8} y={height - padding + 3} fill="#7a7269" fontSize="8" fontFamily="monospace" textAnchor="end">0</text>
+
           {analytics.salesByHour.map((h, i) => {
             const barHeight = (h.count / maxVal) * chartHeight;
             const x = padding + i * (chartWidth / analytics.salesByHour.length) + 2;
             const y = height - padding - barHeight;
+            const showLabel = i % 3 === 0;
+
             return (
               <g key={h.hour}>
                 <rect 
@@ -55,26 +70,40 @@ export default function TabAnalisis({ analytics, formatCurrency, onExportCSV, se
                   stroke="#000"
                   strokeWidth="2"
                 />
-                <text 
-                  x={x + barWidth / 2} 
-                  y={height - 10} 
-                  fill="#7a7269" 
-                  fontSize="7" 
-                  fontFamily="monospace" 
-                  textAnchor="middle"
-                >
-                  {h.hour}
-                </text>
-                <text 
-                  x={x + barWidth / 2} 
-                  y={y - 4} 
-                  fill="#fff" 
-                  fontSize="7" 
-                  fontFamily="monospace" 
-                  textAnchor="middle"
-                >
-                  {h.count}
-                </text>
+                {showLabel && (
+                  <>
+                    <line 
+                      x1={x + barWidth / 2} 
+                      y1={height - padding} 
+                      x2={x + barWidth / 2} 
+                      y2={height - padding + 5} 
+                      stroke="#2a2a2a" 
+                      strokeWidth="2" 
+                    />
+                    <text 
+                      x={x + barWidth / 2} 
+                      y={height - padding + 15} 
+                      fill="#7a7269" 
+                      fontSize="8" 
+                      fontFamily="monospace" 
+                      textAnchor="middle"
+                    >
+                      {h.hour}
+                    </text>
+                  </>
+                )}
+                {h.count > 0 && (
+                  <text 
+                    x={x + barWidth / 2} 
+                    y={y - 4} 
+                    fill="#fff" 
+                    fontSize="7" 
+                    fontFamily="monospace" 
+                    textAnchor="middle"
+                  >
+                    {h.count}
+                  </text>
+                )}
               </g>
             );
           })}
@@ -153,18 +182,28 @@ export default function TabAnalisis({ analytics, formatCurrency, onExportCSV, se
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
-      <div className="flex items-center justify-between border-b-4 border-black pb-4">
+      <div className="flex items-center justify-between border-b-4 border-black pb-4 flex-wrap gap-4">
         <h2 className="text-2xl font-display font-black text-white uppercase flex items-center gap-3">
           <DollarSign className="w-6 h-6 text-[#7a7269]" /> Análisis y Desgloses Financieros
         </h2>
-        <button 
-          onClick={onExportCSV}
-          disabled={!selectedEventId}
-          style={{ backgroundColor: primaryColor }}
-          className="brut-btn text-[10px] text-white"
-        >
-          <Download className="w-4 h-4" /> Exportar CSV
-        </button>
+        <div className="flex items-center gap-4 flex-wrap">
+          <button 
+            onClick={onExportCSV}
+            disabled={!selectedEventId}
+            style={{ backgroundColor: primaryColor }}
+            className="brut-btn text-[10px] text-white"
+          >
+            <Download className="w-4 h-4" /> Exportar CSV
+          </button>
+          <button 
+            onClick={onExportMarketingCSV}
+            disabled={!selectedEventId}
+            className="brut-btn text-[10px] text-white bg-black border-4 hover:brightness-110"
+            style={{ borderColor: primaryColor }}
+          >
+            <Download className="w-4 h-4" /> Exportar Emails Publicidad (CSV)
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -202,18 +241,12 @@ export default function TabAnalisis({ analytics, formatCurrency, onExportCSV, se
         </div>
 
         {/* Ticket medio & Stats */}
-        <div className="space-y-8">
-          {/* Hourly Chart */}
-          <div className="space-y-4">
-            <div className="bg-[#111111] border-4 border-black p-4">
-              <h3 className="text-sm font-mono text-white uppercase font-bold tracking-widest">Distribución Temporal</h3>
-              <p className="text-xs text-[#7a7269] font-mono">Ventas agrupadas por hora.</p>
-            </div>
-            {renderHourChart()}
+        <div className="space-y-4 flex flex-col justify-between h-full">
+          <div className="bg-[#111111] border-4 border-black p-4">
+            <h3 className="text-sm font-mono text-white uppercase font-bold tracking-widest">Ticket Medio</h3>
+            <p className="text-xs text-[#7a7269] font-mono">Eficiencia del promedio por ticket.</p>
           </div>
-
-          {/* Ticket medio metrics */}
-          <div className="bg-[#111111] border-4 border-black p-6 text-center">
+          <div className="bg-[#111111] border-4 border-black p-8 text-center flex-1 flex flex-col justify-center">
             <span className="text-[10px] font-mono text-[#7a7269] uppercase font-bold tracking-widest block mb-2">
               Ticket Medio de Venta
             </span>
@@ -226,6 +259,15 @@ export default function TabAnalisis({ analytics, formatCurrency, onExportCSV, se
           </div>
         </div>
 
+      </div>
+
+      {/* Hourly Chart (Full Width) */}
+      <div className="space-y-4">
+        <div className="bg-[#111111] border-4 border-black p-4">
+          <h3 className="text-sm font-mono text-white uppercase font-bold tracking-widest">Distribución Temporal</h3>
+          <p className="text-xs text-[#7a7269] font-mono">Ventas agrupadas por hora de compra.</p>
+        </div>
+        {renderHourChart()}
       </div>
     </div>
   );

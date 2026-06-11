@@ -94,3 +94,51 @@ export const exportTicketsCSV = async (req: Request, res: Response) => {
     res.status(500).json({ error: "Error al exportar las entradas" });
   }
 };
+
+export const exportMarketingEmailsCSV = async (req: Request, res: Response) => {
+  try {
+    const tickets = await prisma.ticket.findMany({
+      where: {
+        marketingConsent: true
+      },
+      select: {
+        name: true,
+        email: true
+      },
+      orderBy: { name: 'asc' }
+    });
+
+    // Deduplicate by email
+    const uniqueBuyers = new Map<string, string>();
+    for (const t of tickets) {
+      if (t.email) {
+        uniqueBuyers.set(t.email.toLowerCase().trim(), t.name.trim());
+      }
+    }
+
+    const headers = ["Nombre", "Email"];
+    let csvContent = headers.join(",") + "\n";
+
+    for (const [email, name] of uniqueBuyers.entries()) {
+      csvContent += `${sanitizeCSVField(name)},${sanitizeCSVField(email)}\n`;
+    }
+
+    const userId = (req as any).user?.userId;
+    await prisma.auditLog.create({
+      data: {
+        severity: 'INFO',
+        action: 'MARKETING_EMAILS_EXPORTED_CSV',
+        details: `Lista global de correos de marketing exportada en CSV por ${userId}`,
+        userId
+      }
+    });
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename=marketing-global.csv`);
+    res.send(csvContent);
+
+  } catch (error) {
+    console.error("[exportMarketingEmailsCSV] Error:", error);
+    res.status(500).json({ error: "Error al exportar los correos de marketing" });
+  }
+};

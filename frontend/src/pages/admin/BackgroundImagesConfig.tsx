@@ -1,5 +1,6 @@
 import React from 'react';
 import { ImageIcon, Loader2, CheckCircle2, Plus, Trash2 } from 'lucide-react';
+import { getCleanImageUrl } from '../../config/api';
 
 interface BackgroundImagesConfigProps {
   backgroundImage: string;
@@ -43,7 +44,7 @@ export function BackgroundImagesConfig({
           </label>
           {backgroundImage && (
             <div className="mt-2 relative group">
-              <img src={backgroundImage} className="w-full h-20 object-cover rounded-lg border border-white/10" alt="Preview" />
+              <img src={getCleanImageUrl(backgroundImage)} className="w-full h-20 object-cover rounded-lg border border-white/10" alt="Preview" />
               <button onClick={() => onThemeChange('backgroundImage', '')} className="absolute top-1 right-1 p-1.5 bg-black/60 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
                 <Trash2 className="w-3 h-3 text-red-400" />
               </button>
@@ -65,7 +66,7 @@ export function BackgroundImagesConfig({
           </label>
           {backgroundImageMobile && (
             <div className="mt-2 relative group">
-              <img src={backgroundImageMobile} className="w-full h-20 object-cover rounded-lg border border-white/10" alt="Preview Mobile" />
+              <img src={getCleanImageUrl(backgroundImageMobile)} className="w-full h-20 object-cover rounded-lg border border-white/10" alt="Preview Mobile" />
               <button onClick={() => onThemeChange('backgroundImageMobile', '')} className="absolute top-1 right-1 p-1.5 bg-black/60 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
                 <Trash2 className="w-3 h-3 text-red-400" />
               </button>
@@ -76,7 +77,7 @@ export function BackgroundImagesConfig({
 
       {/* Live preview */}
       <div className="rounded-lg overflow-hidden h-32 relative mt-4">
-        <div className="absolute inset-0" style={{ backgroundImage: `url(${backgroundImage})`, backgroundSize: 'cover', backgroundPosition: 'center', filter: 'brightness(0.45)' }} />
+        <div className="absolute inset-0" style={{ backgroundImage: `url(${getCleanImageUrl(backgroundImage)})`, backgroundSize: 'cover', backgroundPosition: 'center', filter: 'brightness(0.45)' }} />
         <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, transparent 40%, rgba(12,12,12,0.95) 100%)' }} />
         <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: primaryColor }} />
         <div className="absolute inset-0 flex flex-col justify-end p-4">
