@@ -24,6 +24,7 @@
 
 import { Request, Response } from 'express';
 import { prisma } from '../index';
+import { calculateDiscount } from './promoter.controller';
 
 /**
  * WHY IMPORT FROM stripe.service?
@@ -43,7 +44,7 @@ import { sendTicketEmail } from '../services/email.service';
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const createPaymentIntent = async (req: Request, res: Response) => {
-  const { ticketId, quantity, buyerName, buyerEmail } = req.body;
+  const { ticketId, quantity, buyerName, buyerEmail, discountCodeId } = req.body;
 
   // Basic input validation — never trust client-supplied data
   if (!ticketId || !quantity || quantity < 1 || !buyerName || !buyerEmail) {
@@ -64,8 +65,46 @@ export const createPaymentIntent = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Stock insuficiente' });
     }
 
-    // Stripe amounts are always in the smallest currency unit (cents for EUR)
-    const amountInCents = Math.round(ticketType.price * quantity * 100);
+    let discountAmount = 0;
+    let resolvedCode = null;
+
+    if (discountCodeId) {
+      resolvedCode = await prisma.discountCode.findUnique({
+        where: { id: discountCodeId },
+        include: { promoter: true }
+      });
+
+      if (!resolvedCode || !resolvedCode.isActive || !resolvedCode.promoter.isActive) {
+        return res.status(400).json({ error: 'El código de descuento no está activo' });
+      }
+
+      const now = new Date();
+      if (resolvedCode.validFrom && now < resolvedCode.validFrom) {
+        return res.status(400).json({ error: 'El código de descuento aún no está activo' });
+      }
+      if (resolvedCode.validUntil && now > resolvedCode.validUntil) {
+        return res.status(400).json({ error: 'El código de descuento ha expirado' });
+      }
+      if (resolvedCode.maxUses !== null && resolvedCode.usedCount >= resolvedCode.maxUses) {
+        return res.status(400).json({ error: 'El código de descuento se ha agotado' });
+      }
+
+      discountAmount = calculateDiscount(resolvedCode, ticketType.price, quantity);
+    }
+
+    const baseAmount = ticketType.price * quantity;
+    const finalAmount = Math.max(0, baseAmount - discountAmount);
+
+    // ── BYPASS DE STRIPE PARA PRECIO 0 ──────────────────────────────────────
+    if (finalAmount === 0) {
+      return res.json({ 
+        clientSecret: null, 
+        isFree: true,
+        freeOrderData: { ticketId, quantity, buyerName, buyerEmail, discountCodeId }
+      });
+    }
+
+    const amountInCents = Math.round(finalAmount * 100);
 
     const paymentIntent = await stripe.paymentIntents.create({
       amount: amountInCents,
@@ -92,6 +131,8 @@ export const createPaymentIntent = async (req: Request, res: Response) => {
         buyerName,
         buyerEmail,
         ticketName: ticketType.name,
+        discountCodeId: discountCodeId ?? '',
+        discountAmount: String(discountAmount),
       },
 
       description: `PartyOn — ${ticketType.name} x${quantity}`,
@@ -99,7 +140,7 @@ export const createPaymentIntent = async (req: Request, res: Response) => {
 
     // Return ONLY the clientSecret — never expose the full PaymentIntent object
     // to the client, as it contains sensitive server-side data.
-    res.json({ clientSecret: paymentIntent.client_secret });
+    res.json({ clientSecret: paymentIntent.client_secret, isFree: false });
 
   } catch (error: any) {
     // Stripe errors have a `.type` field — log it to help diagnose auth vs network issues
@@ -127,7 +168,16 @@ export const createPaymentIntent = async (req: Request, res: Response) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const processCheckout = async (req: Request, res: Response) => {
-  const { buyerName, buyerEmail, ticketId, quantity, paymentIntentId, marketingConsent } = req.body;
+  const { 
+    buyerName, 
+    buyerEmail, 
+    ticketId, 
+    quantity, 
+    paymentIntentId, 
+    marketingConsent, 
+    discountCodeId, 
+    isFreeOrder 
+  } = req.body;
 
   // Validate required fields
   if (!buyerName || !buyerEmail || !ticketId || !quantity || quantity < 1) {
@@ -135,42 +185,40 @@ export const processCheckout = async (req: Request, res: Response) => {
   }
 
   // ─── CRITICAL: Re-verify payment server-side ───────────────────────────────
-  // The frontend sends us the paymentIntentId after Stripe confirms the payment.
-  // We MUST verify this with Stripe ourselves — we cannot simply trust the
-  // client. A malicious user could send any paymentIntentId and claim it
-  // succeeded. Retrieving it from Stripe and checking `pi.status === 'succeeded'`
-  // is the authoritative verification.
-  if (paymentIntentId) {
-    try {
-      const pi = await stripe.paymentIntents.retrieve(paymentIntentId);
+  // If it is a free order, we completely bypass Stripe verification.
+  if (!isFreeOrder) {
+    if (paymentIntentId) {
+      try {
+        const pi = await stripe.paymentIntents.retrieve(paymentIntentId);
 
-      if (pi.status !== 'succeeded') {
-        // Payment was attempted but not completed (e.g. card declined, 3DS pending)
-        return res.status(402).json({ error: 'El pago no se ha completado' });
-      }
-
-      // Extra guard: ensure this PaymentIntent was created for THIS ticket
-      // (prevents reusing a PaymentIntent from a different order)
-      if (pi.metadata?.ticketId && pi.metadata.ticketId !== ticketId) {
-        return res.status(400).json({ error: 'El pago no corresponde a esta entrada' });
-      }
-
-    } catch (error: any) {
-      console.error('[processCheckout] Stripe verification error:', {
-        type: error?.type,
-        code: error?.code,
-        message: error?.message
-      });
-
-      await prisma.auditLog.create({
-        data: { 
-          severity: 'CRITICAL', 
-          action: 'EXTERNAL_API_ERROR', 
-          details: `Message: ${error?.message || 'Unknown Stripe Error'}`,
-          userId: (req as any).user?.userId
+        if (pi.status !== 'succeeded') {
+          // Payment was attempted but not completed (e.g. card declined, 3DS pending)
+          return res.status(402).json({ error: 'El pago no se ha completado' });
         }
-      });
-      return res.status(400).json({ error: 'No se pudo verificar el pago con Stripe' });
+
+        // Extra guard: ensure this PaymentIntent was created for THIS ticket
+        // (prevents reusing a PaymentIntent from a different order)
+        if (pi.metadata?.ticketId && pi.metadata.ticketId !== ticketId) {
+          return res.status(400).json({ error: 'El pago no corresponde a esta entrada' });
+        }
+
+      } catch (error: any) {
+        console.error('[processCheckout] Stripe verification error:', {
+          type: error?.type,
+          code: error?.code,
+          message: error?.message
+        });
+
+        await prisma.auditLog.create({
+          data: { 
+            severity: 'CRITICAL', 
+            action: 'EXTERNAL_API_ERROR', 
+            details: `Message: ${error?.message || 'Unknown Stripe Error'}`,
+            userId: (req as any).user?.userId
+          }
+        });
+        return res.status(400).json({ error: 'No se pudo verificar el pago con Stripe' });
+      }
     }
   }
 
@@ -206,21 +254,61 @@ export const processCheckout = async (req: Request, res: Response) => {
         }
       });
 
+      let promoterId: string | null = null;
+      let resolvedDiscountAmount = 0;
+
+      if (discountCodeId) {
+        const code = await tx.discountCode.findUnique({
+          where: { id: discountCodeId },
+          include: { promoter: true }
+        });
+
+        if (!code || !code.isActive || !code.promoter.isActive) {
+          throw new Error('Código de descuento ya no es válido');
+        }
+
+        const now = new Date();
+        if (code.validFrom && now < code.validFrom) {
+          throw new Error('Código de descuento ya no es válido');
+        }
+        if (code.validUntil && now > code.validUntil) {
+          throw new Error('Código de descuento ya no es válido');
+        }
+        if (code.maxUses && code.usedCount >= code.maxUses) {
+          throw new Error('Código agotado');
+        }
+
+        resolvedDiscountAmount = calculateDiscount(code, ticketType.price, quantity);
+        promoterId = code.promoterId;
+
+        // Increment usedCount
+        await tx.discountCode.update({
+          where: { id: discountCodeId },
+          data: { usedCount: { increment: 1 } }
+        });
+      }
+
+      const totalPaid = Math.max(0, ticketType.price * quantity - resolvedDiscountAmount);
+
       // Create the Order record
       const order = await tx.order.create({
         data: {
           eventId: ticketType.eventId,
           customerName: buyerName,
           customerEmail: buyerEmail,
-          totalPaid: ticketType.price * quantity,
+          totalPaid,
           paymentIntent: paymentIntentId ?? null,
           status: 'COMPLETED',
-          marketingConsent: !!marketingConsent
+          marketingConsent: !!marketingConsent,
+          promoterId,
+          discountCodeId: discountCodeId ?? null,
+          discountAmount: resolvedDiscountAmount
         }
       });
 
       // Create one Ticket row per seat purchased
       const created = [];
+      const singleDiscount = resolvedDiscountAmount / quantity;
       for (let i = 0; i < quantity; i++) {
         const ticket = await tx.ticket.create({
           data: {
@@ -231,7 +319,7 @@ export const processCheckout = async (req: Request, res: Response) => {
             email: buyerEmail,
             status: 'VALID',
             paymentIntent: paymentIntentId ?? null,
-            pricePaid: ticketType.price,
+            pricePaid: Math.max(0, ticketType.price - singleDiscount),
             marketingConsent: !!marketingConsent
           }
         });
@@ -248,102 +336,110 @@ export const processCheckout = async (req: Request, res: Response) => {
       tickets,
     });
 
-    /**
-     * ─── TICKET DELIVERY SYSTEM (ASYNCHRONOUS) ──────────────────────────────
-     * We trigger this AFTER sending the success response to the frontend.
-     * This ensures the user sees the "Success" screen instantly, while the
-     * "heavy" PDF generation and Email sending happen in the background.
-     * 
-     * We also wrap this in a try/catch so if the email service is down,
-     * it doesn't crash the request logic.
-     */
-    (async () => {
-      console.log(`[Delivery] Starting background process for ${tickets.length} ticket(s) to ${buyerEmail}...`);
-      try {
-        // 1. Fetch full Event and Theme context for branding
-        const ticketTypeInfo = await prisma.ticketType.findUnique({
-          where: { id: ticketId },
-          include: {
-            event: {
-              include: { theme: true }
-            }
-          }
-        });
-
-        if (!ticketTypeInfo || !ticketTypeInfo.event) {
-          console.error('[Delivery] Aborting: Could not find ticket type or event data for ID:', ticketId);
-          return;
-        }
-
-        const { event } = ticketTypeInfo;
-        const theme = event.theme || { primaryColor: '#00ffcc', backgroundImage: null, backgroundImageMobile: null };
-        console.log(`[Delivery] Branding found - Event: ${event.name}, PrimaryColor: ${theme.primaryColor}`);
-
-        // 2. Prepare collection for the single email
-        const collectedTickets: { pdfBuffer: Buffer; ticketId: string }[] = [];
-        console.log(`[Delivery] Processing ${tickets.length} ticket(s)...`);
-
-        for (const ticket of tickets) {
-          try {
-            console.log(`[Delivery] Generating Ticket: ${ticket.id}`);
-
-            // STEP A: Generate Branded QR Code
-            const qrBase64 = await generateTicketQR(ticket.id, theme.primaryColor);
-
-            // STEP B: Generate Branded PDF Ticket Card
-            const pdfBuffer = await generateTicketPDF({
-              event: {
-                name: event.name,
-                tagline: event.tagline ?? undefined,
-                date: event.date,
-                location: event.location,
-                startsAt: event.startsAt?.toISOString() ?? null,
-                endsAt: event.endsAt?.toISOString() ?? null,
-              },
-              theme: {
-                primaryColor: theme.primaryColor ?? undefined,
-                backgroundImage: theme.backgroundImageMobile || theme.backgroundImage || undefined,
-              },
-              ticket: { 
-                id: ticket.id,
-                name: ticket.name,
-                ticketType: { name: ticketTypeInfo.name },
-              },
-              qrCodeBase64: qrBase64
-            });
-
-            collectedTickets.push({ pdfBuffer, ticketId: ticket.id });
-          } catch (deliveryError) {
-            console.error(`[Delivery] ❌ FAILED to generate PDF for ${ticket.id}:`, deliveryError);
-            // We continue the loop so other tickets in the same order still get generated
-          }
-        }
-
-        // 3. Dispatch the single consolidated email
-        if (collectedTickets.length > 0) {
-          console.log(`[Delivery] Dispatching single email with ${collectedTickets.length} ticket(s) to ${buyerEmail}...`);
-          const result = await sendTicketEmail({
-            to: buyerEmail,
-            subject: event.emailSubject,
-            bodyMarkdown: event.emailBody,
-            eventName: event.name,
-            tickets: collectedTickets
-          });
-          console.log(`[Delivery] ✅ SUCCESS: Consolidated email sent. ID: ${result.messageId}`);
-        } else {
-          console.warn('[Delivery] No tickets were generated, skip email.');
-        }
-      } catch (systemError) {
-        console.error('[Delivery] Fatal system error in background task:', systemError);
-      }
-    })();
+    // If it is a free order, generate and send ticket immediately (sync)
+    // to ensure user gets immediate delivery and prevent background thread delays
+    if (isFreeOrder) {
+      await deliverTickets(tickets, ticketId, buyerEmail);
+    } else {
+      // Standard asynchronous delivery
+      (async () => {
+        await deliverTickets(tickets, ticketId, buyerEmail);
+      })();
+    }
 
   } catch (error: any) {
-    // Surface domain errors (stock, not found) as 400 instead of 500
-    if (['Stock insuficiente', 'Tipo de entrada no encontrado', 'Este tipo de entrada no está disponible'].includes(error.message)) {
+    // Surface domain errors (stock, not found, invalid discount) as 400 instead of 500
+    if ([
+      'Stock insuficiente', 
+      'Tipo de entrada no encontrado', 
+      'Este tipo de entrada no está disponible',
+      'Código de descuento ya no es válido',
+      'Código agotado'
+    ].includes(error.message)) {
       return res.status(400).json({ error: error.message });
     }
     console.error('[processCheckout] DB error:', error);
     res.status(500).json({ error: 'Error al procesar la compra' });
   }
 };
+
+// Helper function to handle QR generation, PDF creation, and Email dispatch
+async function deliverTickets(tickets: any[], ticketTypeId: string, buyerEmail: string) {
+  console.log(`[Delivery] Starting process for ${tickets.length} ticket(s) to ${buyerEmail}...`);
+  try {
+    // 1. Fetch full Event and Theme context for branding
+    const ticketTypeInfo = await prisma.ticketType.findUnique({
+      where: { id: ticketTypeId },
+      include: {
+        event: {
+          include: { theme: true }
+        }
+      }
+    });
+
+    if (!ticketTypeInfo || !ticketTypeInfo.event) {
+      console.error('[Delivery] Aborting: Could not find ticket type or event data for ID:', ticketTypeId);
+      return;
+    }
+
+    const { event } = ticketTypeInfo;
+    const theme = event.theme || { primaryColor: '#00ffcc', backgroundImage: null, backgroundImageMobile: null };
+    console.log(`[Delivery] Branding found - Event: ${event.name}, PrimaryColor: ${theme.primaryColor}`);
+
+    // 2. Prepare collection for the single email
+    const collectedTickets: { pdfBuffer: Buffer; ticketId: string }[] = [];
+    console.log(`[Delivery] Processing ${tickets.length} ticket(s)...`);
+
+    for (const ticket of tickets) {
+      try {
+        console.log(`[Delivery] Generating Ticket: ${ticket.id}`);
+
+        // STEP A: Generate Branded QR Code
+        const qrBase64 = await generateTicketQR(ticket.id, theme.primaryColor);
+
+        // STEP B: Generate Branded PDF Ticket Card
+        const pdfBuffer = await generateTicketPDF({
+          event: {
+            name: event.name,
+            tagline: event.tagline ?? undefined,
+            date: event.date,
+            location: event.location,
+            startsAt: event.startsAt?.toISOString() ?? null,
+            endsAt: event.endsAt?.toISOString() ?? null,
+          },
+          theme: {
+            primaryColor: theme.primaryColor ?? undefined,
+            backgroundImage: theme.backgroundImageMobile || theme.backgroundImage || undefined,
+          },
+          ticket: { 
+            id: ticket.id,
+            name: ticket.name,
+            ticketType: { name: ticketTypeInfo.name },
+          },
+          qrCodeBase64: qrBase64
+        });
+
+        collectedTickets.push({ pdfBuffer, ticketId: ticket.id });
+      } catch (deliveryError) {
+        console.error(`[Delivery] ❌ FAILED to generate PDF for ${ticket.id}:`, deliveryError);
+      }
+    }
+
+    // 3. Dispatch the single consolidated email
+    if (collectedTickets.length > 0) {
+      console.log(`[Delivery] Dispatching single email with ${collectedTickets.length} ticket(s) to ${buyerEmail}...`);
+      const result = await sendTicketEmail({
+        to: buyerEmail,
+        subject: event.emailSubject,
+        bodyMarkdown: event.emailBody,
+        eventName: event.name,
+        tickets: collectedTickets
+      });
+      console.log(`[Delivery] ✅ SUCCESS: Consolidated email sent. ID: ${result.messageId}`);
+    } else {
+      console.warn('[Delivery] No tickets were generated, skip email.');
+    }
+  } catch (systemError) {
+    console.error('[Delivery] Fatal system error in task:', systemError);
+  }
+}

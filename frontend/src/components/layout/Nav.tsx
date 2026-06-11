@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { getCleanImageUrl } from '../../config/api';
+import { LanguageSwitcher } from './LanguageSwitcher';
 
 interface NavProps {
   ctaLabel?: string;
@@ -42,6 +43,7 @@ export function Nav({ ctaLabel = 'ENTRADAS', logoUrl }: NavProps) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
+          position: 'relative'
         }}
       >
         {/* Logo */}
@@ -53,6 +55,11 @@ export function Nav({ ctaLabel = 'ENTRADAS', logoUrl }: NavProps) {
             onError={(e) => { e.currentTarget.style.display = 'none'; }}
           />
         </Link>
+
+        {/* Language Switcher */}
+        <div style={{ position: 'absolute', right: '1.5rem' }}>
+          <LanguageSwitcher />
+        </div>
       </div>
     </nav>
   );

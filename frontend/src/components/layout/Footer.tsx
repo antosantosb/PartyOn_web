@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 const InstagramIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg
@@ -18,6 +19,7 @@ const InstagramIcon = (props: React.SVGProps<SVGSVGElement>) => (
 
 export function Footer({ logoUrl }: { logoUrl?: string }) {
   const currentYear = new Date().getFullYear();
+  const { t } = useTranslation();
 
   return (
     <footer className="bg-bg-alt border-t-2 border-border py-16 px-6 relative z-10">
@@ -51,10 +53,10 @@ export function Footer({ logoUrl }: { logoUrl?: string }) {
         {/* Copyright and Legal Block */}
         <div className="text-center md:text-right">
           <p className="font-mono text-[9px] text-text-muted uppercase tracking-widest">
-            © {currentYear} PARTYON. TODOS LOS DERECHOS RESERVADOS.
+            {t('footer.rightsReserved', { year: currentYear })}
           </p>
           <p className="font-mono text-[8px] text-text-faint mt-1 tracking-widest uppercase">
-            CREADO POR PARTYON TECH TEAM.
+            {t('footer.createdBy')}
           </p>
         </div>
 

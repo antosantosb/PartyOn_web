@@ -1,5 +1,5 @@
 import { NavLink, Link } from 'react-router-dom';
-import { Settings, Terminal, ScanLine, BarChart3, ArrowLeft, Users } from 'lucide-react';
+import { Settings, Terminal, ScanLine, BarChart3, ArrowLeft, Users, Tag } from 'lucide-react';
 import { useStore } from '../../lib/store';
 
 export default function AdminSidebar() {
@@ -14,6 +14,7 @@ export default function AdminSidebar() {
   } else {
     navItems.push({ name: 'Configuración', path: '/admin/configuration', icon: Settings });
     navItems.push({ name: 'Equipo', path: '/admin/users', icon: Users });
+    navItems.push({ name: 'Promotores', path: '/admin/promotores', icon: Tag });
     if (role === 'DEV') {
       navItems.push({ name: 'Dev & Logs', path: '/admin/dev', icon: Terminal });
     }

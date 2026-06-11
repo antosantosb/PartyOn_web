@@ -60,6 +60,7 @@ model Event {
   tickets     Ticket[]
   expenses    Expense[]
   orders      Order[]
+  promoters   Promoter[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -120,6 +121,12 @@ model Order {
   marketingConsent Boolean  @default(false)
   createdAt        DateTime @default(now())
   tickets          Ticket[]
+
+  promoterId     String?
+  promoter       Promoter?     @relation("PromoterOrders", fields: [promoterId], references: [id])
+  discountCodeId String?
+  discountCode   DiscountCode? @relation("DiscountCodeOrders", fields: [discountCodeId], references: [id])
+  discountAmount Float         @default(0)  // Importe descontado en €, para el registro histórico
 }
 
 model Ticket {
@@ -166,4 +173,48 @@ model AuditLog {
   action    String
   details   String?  @db.Text
   timestamp DateTime @default(now())
+}
+
+model Promoter {
+  id        String   @id @default(cuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  
+  name      String          // "DJ Álvaro", "Lista VIP Fila"
+  email     String?         // Contacto del promotor (solo para el admin, no visible en storefront)
+  phone     String?
+  notes     String?         // Notas internas del admin
+  isActive  Boolean  @default(true)
+  
+  discountCodes DiscountCode[]
+  orders        Order[]        @relation("PromoterOrders")
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model DiscountCode {
+  id         String   @id @default(cuid())
+  promoterId String
+  promoter   Promoter @relation(fields: [promoterId], references: [id], onDelete: Cascade)
+  
+  // El código se almacena SIEMPRE en mayúsculas (normalizado en el controlador)
+  code       String   @unique
+  
+  // type: "PERCENTAGE" (value = 0-100%) | "FIXED" (value = euros) | "FREE" (value ignorado, siempre 100%)
+  type       String   @default("PERCENTAGE")
+  value      Float    @default(0)
+  
+  maxUses    Int?     // null = ilimitado
+  usedCount  Int      @default(0)
+  isActive   Boolean  @default(true)
+  
+  // Restricciones opcionales
+  validFrom   DateTime?
+  validUntil  DateTime?
+  
+  orders     Order[]  @relation("DiscountCodeOrders")
+  
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }

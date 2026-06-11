@@ -37,6 +37,7 @@ import {
   useElements
 } from '@stripe/react-stripe-js';
 import { Loader2, ArrowRight, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 /**
  * WHY IS stripePromise OUTSIDE THE COMPONENT?
@@ -59,14 +60,17 @@ interface CardFormProps {
   quantity: number;
   selectedTicket: any;
   marketingConsent: boolean;
+  discountCodeId?: string;
+  discountAmount?: number;
   onSuccess: (paymentIntentId: string) => void;
 }
 
-function CardForm({ theme, buyerName, buyerEmail, ticketId, quantity, selectedTicket, marketingConsent, onSuccess }: CardFormProps) {
+function CardForm({ theme, buyerName, buyerEmail, ticketId, quantity, selectedTicket, marketingConsent, discountCodeId, discountAmount, onSuccess }: CardFormProps) {
   const stripe = useStripe();
   const elements = useElements();
   const [isProcessing, setIsProcessing] = useState(false);
   const [cardError, setCardError] = useState<string | null>(null);
+  const { t } = useTranslation();
 
   const handleConfirm = async () => {
     if (!stripe || !elements || isProcessing) return;
@@ -78,7 +82,7 @@ function CardForm({ theme, buyerName, buyerEmail, ticketId, quantity, selectedTi
       // even hit our server. This surfaces card number/expiry errors instantly.
       const { error: submitError } = await elements.submit();
       if (submitError) {
-        setCardError(submitError.message ?? 'Error al validar la tarjeta');
+        setCardError(submitError.message ?? t('errors.paymentFailed'));
         setIsProcessing(false);
         return;
       }
@@ -89,11 +93,11 @@ function CardForm({ theme, buyerName, buyerEmail, ticketId, quantity, selectedTi
       const piRes = await fetch(`${API_BASE}/create-payment-intent`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ticketId, quantity, buyerName, buyerEmail })
+        body: JSON.stringify({ ticketId, quantity, buyerName, buyerEmail, discountCodeId })
       });
       const piData = await piRes.json();
       if (!piData.clientSecret) {
-        setCardError(piData.error || 'No fue posible iniciar el pago');
+        setCardError(piData.error || t('errors.paymentFailed'));
         setIsProcessing(false);
         return;
       }
@@ -142,7 +146,7 @@ function CardForm({ theme, buyerName, buyerEmail, ticketId, quantity, selectedTi
       if (confirmError) {
         // confirmError covers: card declined, insufficient funds, expired card,
         // incorrect CVC, 3DS failed, etc.
-        setCardError(confirmError.message ?? 'El pago fue rechazado');
+        setCardError(confirmError.message ?? t('errors.paymentFailed'));
         setIsProcessing(false);
         return;
       }
@@ -161,29 +165,30 @@ function CardForm({ theme, buyerName, buyerEmail, ticketId, quantity, selectedTi
             ticketId,
             quantity,
             paymentIntentId: paymentIntent.id,
-            marketingConsent
+            marketingConsent,
+            discountCodeId
           })
         });
         const checkoutData = await checkoutRes.json();
         if (checkoutData.success) {
           onSuccess(paymentIntent.id);
         } else {
-          setCardError(checkoutData.error || 'Error al registrar la entrada');
+          setCardError(checkoutData.error || t('errors.genericError'));
         }
       } else if (paymentIntent) {
         if (paymentIntent.status === 'processing') {
-          setCardError('El pago se está procesando. Revisa tu app de pago (como MB Way) para confirmar.');
+          setCardError(t('checkout.mbwayHint'));
         } else if (paymentIntent.status === 'requires_payment_method') {
-          setCardError('El pago ha sido rechazado o no se pudo completar. Inténtalo con otro método.');
+          setCardError(t('checkout.failedHint'));
         } else {
-          setCardError(`El pago no se ha completado (Estado: ${paymentIntent.status}). Inténtalo de nuevo.`);
+          setCardError(t('checkout.uncompletedHint'));
         }
       } else {
-        setCardError('No se pudo confirmar el estado del pago.');
+        setCardError(t('errors.paymentFailed'));
       }
     } catch (err: any) {
       // Network-level failure (no internet, backend down, CORS, etc.)
-      setCardError(err?.message || 'Error de conexión. Inténtalo de nuevo.');
+      setCardError(err?.message || t('errors.connError'));
     } finally {
       setIsProcessing(false);
     }
@@ -224,16 +229,16 @@ function CardForm({ theme, buyerName, buyerEmail, ticketId, quantity, selectedTi
         style={{ backgroundColor: theme.primaryColor }}
       >
         {isProcessing ? (
-          <><Loader2 className="w-4 h-4 animate-spin" /> Procesando pago...</>
+          <><Loader2 className="w-4 h-4 animate-spin" /> {t('checkout.processing')}</>
         ) : (
-          <>Pagar {(quantity * selectedTicket.price).toFixed(0)}€ <ArrowRight className="w-4 h-4" /></>
+          <>{t('checkout.pay')} {(quantity * selectedTicket.price - (discountAmount || 0)).toFixed(2)}€ <ArrowRight className="w-4 h-4" /></>
         )}
       </button>
 
       {/* Test card hint — remove before going live */}
       {import.meta.env.DEV && (
         <p className="text-center text-[11px] font-mono text-white/20">
-          Test: 4242 4242 4242 4242 · fecha futura · cualquier CVC
+          {t('checkout.testCardHint')}
         </p>
       )}
     </div>
@@ -249,13 +254,16 @@ interface StripeCheckoutProps {
   quantity: number;
   selectedTicket: any;
   marketingConsent: boolean;
+  discountCodeId?: string;
+  discountAmount?: number;
   onClose: () => void;
   onSuccess: (paymentIntentId: string) => void;
 }
 
 export function StripeCheckout({
-  theme, buyerName, buyerEmail, ticketId, quantity, selectedTicket, marketingConsent, onClose, onSuccess
+  theme, buyerName, buyerEmail, ticketId, quantity, selectedTicket, marketingConsent, discountCodeId, discountAmount, onClose, onSuccess
 }: StripeCheckoutProps) {
+  const { t } = useTranslation();
   const isPlaceholderKey = import.meta.env.VITE_STRIPE_PUBLIC_KEY?.includes('REPLACE_ME');
 
   /**
@@ -277,7 +285,7 @@ export function StripeCheckout({
    */
   const elementsOptions = {
     mode: 'payment' as const,
-    amount: Math.round(selectedTicket.price * quantity * 100),
+    amount: Math.round(Math.max(1, selectedTicket.price * quantity - (discountAmount || 0)) * 100),
     currency: 'eur',
     appearance: {
       theme: 'night' as const,
@@ -308,19 +316,19 @@ export function StripeCheckout({
         {/* Order summary — read-only, shown above the card form */}
         <div className="flex items-center justify-between pb-4 border-b border-white/8">
           <div>
-            <p className="text-xs font-mono text-white/40 uppercase tracking-wider mb-1">Resumen</p>
+            <p className="text-xs font-mono text-white/40 uppercase tracking-wider mb-1">{t('checkout.summary')}</p>
             <p className="font-semibold text-sm">{selectedTicket.name} × {quantity}</p>
             <p className="text-xs text-white/30">{buyerEmail}</p>
           </div>
           <p className="text-2xl font-bold" style={{ color: theme.primaryColor }}>
-            {(quantity * selectedTicket.price).toFixed(0)}€
+            {(quantity * selectedTicket.price - (discountAmount || 0)).toFixed(2)}€
           </p>
         </div>
 
         {/* Warning banner shown if the public key has not been configured yet */}
         {isPlaceholderKey && (
           <div className="flex items-start gap-2 text-xs text-amber-400 bg-amber-400/8 border border-amber-400/20 rounded-lg px-3 py-2.5 mb-2 font-mono">
-            <span>⚠ ATENCIÓN: Configura tu VITE_STRIPE_PUBLIC_KEY en el archivo frontend/.env para probar el pago.</span>
+            <span>{t('checkout.stripeWarning')}</span>
           </div>
         )}
 
@@ -332,6 +340,8 @@ export function StripeCheckout({
           quantity={quantity}
           selectedTicket={selectedTicket}
           marketingConsent={marketingConsent}
+          discountCodeId={discountCodeId}
+          discountAmount={discountAmount}
           onSuccess={onSuccess}
         />
 
@@ -339,7 +349,7 @@ export function StripeCheckout({
           onClick={onClose}
           className="w-full text-xs text-white/20 hover:text-white/40 transition-colors font-mono flex items-center justify-center gap-1"
         >
-          <X className="w-3 h-3" /> Cancelar
+          <X className="w-3 h-3" /> {t('checkout.cancel')}
         </button>
       </div>
     </Elements>

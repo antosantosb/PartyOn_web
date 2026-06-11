@@ -14,6 +14,17 @@ import {
   getEventAttendance
 } from '../controllers/admin.controller';
 import { createPaymentIntent, processCheckout } from '../controllers/checkout.controller';
+import { 
+  validateDiscountCode,
+  getPromoters,
+  createPromoter,
+  updatePromoter,
+  deletePromoter,
+  createDiscountCode,
+  toggleDiscountCode,
+  deleteDiscountCode,
+  getPromoterAnalytics
+} from '../controllers/promoter.controller';
 import { updateTicketTypes } from '../controllers/ticketType.controller';
 import { login } from '../controllers/auth.controller';
 import { getDatabaseStats, getSystemLogs, searchTickets } from '../controllers/dev.controller';
@@ -34,6 +45,7 @@ router.get('/store-data', getStoreData); // Compatibility endpoint
 router.get('/events/active', getActiveEvent);
 router.post('/create-payment-intent', paymentIntentLimiter, createPaymentIntent);
 router.post('/checkout', checkoutLimiter, processCheckout);
+router.post('/validate-discount', validateDiscountCode);
 router.post('/auth/login', loginLimiter, login);
 
 // Protected Admin routes (ADMIN and DEV only)
@@ -52,6 +64,16 @@ router.put('/admin/management/expenses/:id', authMiddleware, authorize(['ADMIN',
 router.delete('/admin/management/expenses/:id', authMiddleware, authorize(['ADMIN', 'DEV']), deleteExpense);
 router.get('/admin/management/export-csv/:eventId', authMiddleware, authorize(['ADMIN', 'DEV']), exportTicketsCSV);
 router.get('/admin/management/export-marketing', authMiddleware, authorize(['ADMIN', 'DEV']), exportMarketingEmailsCSV);
+
+// Promoter & Discount Code Routes (ADMIN and DEV only)
+router.get('/admin/events/:eventId/promoters', authMiddleware, authorize(['ADMIN', 'DEV']), getPromoters);
+router.post('/admin/events/:eventId/promoters', authMiddleware, authorize(['ADMIN', 'DEV']), createPromoter);
+router.put('/admin/promoters/:id', authMiddleware, authorize(['ADMIN', 'DEV']), updatePromoter);
+router.delete('/admin/promoters/:id', authMiddleware, authorize(['ADMIN', 'DEV']), deletePromoter);
+router.post('/admin/promoters/:id/codes', authMiddleware, authorize(['ADMIN', 'DEV']), createDiscountCode);
+router.patch('/admin/discount-codes/:id', authMiddleware, authorize(['ADMIN', 'DEV']), toggleDiscountCode);
+router.delete('/admin/discount-codes/:id', authMiddleware, authorize(['ADMIN', 'DEV']), deleteDiscountCode);
+router.get('/admin/events/:eventId/promoters/analytics', authMiddleware, authorize(['ADMIN', 'DEV']), getPromoterAnalytics);
 
 // Validation & Walk-in Registration (Accessible by ADMIN, DEV, and STAFF)
 router.get('/admin/events/:eventId/attendance', authMiddleware, authorize(['ADMIN', 'DEV', 'STAFF']), getEventAttendance);

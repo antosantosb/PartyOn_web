@@ -1,9 +1,11 @@
 import { useState, type FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { X, ArrowRight, CheckCircle2, Loader2 } from 'lucide-react';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { StripeCheckout } from '../StripeCheckout';
+import { API_BASE } from '../../config/api';
+import { useTranslation } from 'react-i18next';
 
 interface TicketType {
   id: string;
@@ -26,6 +28,7 @@ export function CheckoutModal({
   quantity,
   theme
 }: CheckoutModalProps) {
+  const { t } = useTranslation();
   const [step, setStep] = useState<'details' | 'payment' | 'success'>('details');
   const [buyerName, setBuyerName] = useState('');
   const [buyerEmail, setBuyerEmail] = useState('');
@@ -34,9 +37,51 @@ export function CheckoutModal({
   const [infoModal, setInfoModal] = useState<'terms' | 'privacy' | null>(null);
   const [marketingConsent, setMarketingConsent] = useState(false);
 
-  const totalPrice = (selectedTicket.price * quantity).toFixed(2);
+  // Discount states
+  const [discountCode, setDiscountCode] = useState('');
+  const [discountCodeError, setDiscountCodeError] = useState('');
+  const [appliedCode, setAppliedCode] = useState<any>(null);
+  const [validatingDiscount, setValidatingDiscount] = useState(false);
+  const [submittingFree, setSubmittingFree] = useState(false);
 
-  const handleNextStep = (e: FormEvent) => {
+  const discountAmount = appliedCode ? appliedCode.discountAmount : 0;
+  const finalPrice = Math.max(0, selectedTicket.price * quantity - discountAmount);
+  const totalPrice = finalPrice.toFixed(2);
+
+  const handleApplyDiscount = async () => {
+    if (!discountCode.trim()) return;
+    setValidatingDiscount(true);
+    setDiscountCodeError('');
+    try {
+      const res = await fetch(`${API_BASE}/validate-discount`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: discountCode,
+          ticketTypeId: selectedTicket.id,
+          quantity
+        })
+      });
+      const data = await res.json();
+      if (data.valid) {
+        setAppliedCode(data);
+      } else {
+        const reasons: Record<string, string> = {
+          'NOT_FOUND': t('errors.invalidCode'),
+          'INACTIVE': t('errors.invalidCode'),
+          'EXPIRED': t('errors.invalidCode'),
+          'EXHAUSTED': t('errors.codeExhausted')
+        };
+        setDiscountCodeError(reasons[data.reason] || t('errors.invalidCode'));
+      }
+    } catch (err) {
+      setDiscountCodeError(t('errors.connError'));
+    } finally {
+      setValidatingDiscount(false);
+    }
+  };
+
+  const handleNextStep = async (e: FormEvent) => {
     e.preventDefault();
     setNameError('');
     setEmailError('');
@@ -44,21 +89,50 @@ export function CheckoutModal({
     let hasError = false;
 
     if (!buyerName.trim()) {
-      setNameError('El nombre es obligatorio.');
+      setNameError(t('errors.nameRequired'));
       hasError = true;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!buyerEmail.trim()) {
-      setEmailError('El correo es obligatorio.');
+      setEmailError(t('errors.emailRequired'));
       hasError = true;
     } else if (!emailRegex.test(buyerEmail)) {
-      setEmailError('Formato de correo electrónico inválido.');
+      setEmailError(t('errors.emailInvalid'));
       hasError = true;
     }
 
     if (!hasError) {
-      setStep('payment');
+      if (appliedCode && appliedCode.isFree) {
+        setSubmittingFree(true);
+        try {
+          const res = await fetch(`${API_BASE}/checkout`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              buyerName,
+              buyerEmail,
+              ticketId: selectedTicket.id,
+              quantity,
+              marketingConsent,
+              discountCodeId: appliedCode.codeId,
+              isFreeOrder: true
+            })
+          });
+          const checkoutData = await res.json();
+          if (checkoutData.success) {
+            setStep('success');
+          } else {
+            setDiscountCodeError(checkoutData.error || t('errors.freeFailed'));
+          }
+        } catch (err) {
+          setDiscountCodeError(t('errors.connError'));
+        } finally {
+          setSubmittingFree(false);
+        }
+      } else {
+        setStep('payment');
+      }
     }
   };
 
@@ -76,6 +150,10 @@ export function CheckoutModal({
     setEmailError('');
     setInfoModal(null);
     setMarketingConsent(false);
+    setDiscountCode('');
+    setDiscountCodeError('');
+    setAppliedCode(null);
+    setSubmittingFree(false);
   };
 
   return (
@@ -125,17 +203,17 @@ export function CheckoutModal({
                   >
                     <div className="mb-6">
                       <p className="text-[9px] font-mono uppercase tracking-[0.25em] text-accent mb-1">
-                        PASO 1 DE 2
+                        {t('checkout.step1')}
                       </p>
                       <h3 className="font-display text-2xl uppercase tracking-wider text-white">
-                        TUS DATOS
+                        {t('checkout.title').toUpperCase()}
                       </h3>
                     </div>
 
                     <div className="flex items-center justify-between bg-[#0a0a0a] border border-white/5 p-4 mb-6">
                       <div>
                         <p className="text-[10px] font-mono text-white/30 uppercase tracking-widest">
-                          Entrada Seleccionada
+                          {t('checkout.selectedTicketLabel')}
                         </p>
                         <p className="font-bold text-sm text-white uppercase mt-0.5">
                           {selectedTicket.name} x {quantity}
@@ -148,9 +226,9 @@ export function CheckoutModal({
 
                     <form onSubmit={handleNextStep} className="space-y-4">
                       <Input
-                        label="Nombre Completo"
+                        label={t('checkout.nameLabel')}
                         type="text"
-                        placeholder="ej. Mateo Santos"
+                        placeholder={t('checkout.namePlaceholder')}
                         value={buyerName}
                         onChange={(e) => setBuyerName(e.target.value)}
                         error={nameError}
@@ -158,33 +236,82 @@ export function CheckoutModal({
                       />
 
                       <Input
-                        label="Correo Electrónico"
+                        label={t('checkout.emailLabel')}
                         type="email"
-                        placeholder="ej. mateo@gmail.com"
+                        placeholder={t('checkout.emailPlaceholder')}
                         value={buyerEmail}
                         onChange={(e) => setBuyerEmail(e.target.value)}
                         error={emailError}
                         required
                       />
 
-                      <p className="text-[11px] text-white/50 leading-relaxed text-center mt-4 mb-4">
-                        Al continuar, aceptas nuestros{' '}
+                      {/* Discount Code Section */}
+                      <div className="space-y-2 pt-2 pb-2">
+                        <label className="block text-[11px] font-mono text-white/40 uppercase tracking-widest">
+                          {t('checkout.discountCode')}
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            placeholder={t('checkout.discountPlaceholder')}
+                            value={discountCode}
+                            onChange={(e) => {
+                              setDiscountCode(e.target.value.toUpperCase());
+                              setDiscountCodeError('');
+                            }}
+                            disabled={!!appliedCode || validatingDiscount}
+                            className="bg-[#0a0a0a] border border-white/10 rounded-lg p-3 text-white text-sm focus:outline-none focus:border-accent flex-1 font-bold tracking-widest uppercase disabled:opacity-50"
+                          />
+                          {appliedCode ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAppliedCode(null);
+                                setDiscountCode('');
+                              }}
+                              className="px-4 py-2 border border-red-500 text-red-500 hover:bg-red-500/10 text-xs font-bold uppercase transition-all rounded-lg cursor-pointer"
+                            >
+                              {t('checkout.removeCode')}
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={handleApplyDiscount}
+                              disabled={!discountCode.trim() || validatingDiscount}
+                              className="px-4 py-2 bg-white/10 border border-white/20 text-white hover:bg-white/20 text-xs font-bold uppercase transition-all rounded-lg disabled:opacity-40 cursor-pointer"
+                            >
+                              {validatingDiscount ? '...' : t('checkout.applyCode')}
+                            </button>
+                          )}
+                        </div>
+                        {discountCodeError && (
+                          <p className="text-xs text-red-500 font-mono mt-1">⚠ {discountCodeError}</p>
+                        )}
+                        {appliedCode && (
+                          <p className="text-xs text-green-400 font-mono mt-1">
+                            ✓ {t('checkout.discountApplied')} -{appliedCode.discountAmount.toFixed(2)}€ ({t('checkout.discountBy', { name: appliedCode.promoterName })})
+                          </p>
+                        )}
+                      </div>
+
+                      <p className="text-[11px] text-white/50 leading-relaxed text-center mt-4 mb-4 font-sans">
+                        {t('checkout.termsWarningIntro')}{' '}
                         <button
                           type="button"
                           onClick={() => setInfoModal('terms')}
-                          className="text-accent underline hover:text-accent/80 transition-colors font-semibold"
+                          className="underline text-white/70 hover:text-white transition-colors cursor-pointer"
                         >
-                          Términos y Condiciones
+                          {t('checkout.termsAndConditions')}
                         </button>{' '}
-                        y nuestra{' '}
+                        {t('checkout.and')}{' '}
                         <button
                           type="button"
                           onClick={() => setInfoModal('privacy')}
-                          className="text-accent underline hover:text-accent/80 transition-colors font-semibold"
+                          className="underline text-white/70 hover:text-white transition-colors cursor-pointer"
                         >
-                          Política de Privacidad
+                          {t('checkout.privacyPolicy')}
                         </button>{' '}
-                        para fines de gestión, emisión de entradas y control de accesos.
+                        {t('checkout.termsWarningOutro')}
                       </p>
 
                       {/* Marketing consent checkbox */}
@@ -207,11 +334,10 @@ export function CheckoutModal({
                             </svg>
                           )}
                         </div>
-                        <span 
-                          className="text-[11px] text-white/70 leading-normal tracking-wide"
-                          style={{ fontFamily: "'Hanken Grotesk', sans-serif" }}
+                        <span
+                          className="text-[11px] text-white/70 leading-normal tracking-wide font-sans"
                         >
-                          Me gustaría recibir novedades, descuentos y comunicaciones comerciales sobre los próximos eventos de PartyOn por correo electrónico. (Puedes revocar este consentimiento en cualquier momento).
+                          {t('checkout.marketingConsent')}
                         </span>
                       </label>
 
@@ -219,8 +345,15 @@ export function CheckoutModal({
                         type="submit"
                         variant="primary"
                         className="w-full flex items-center justify-center gap-2 mt-4"
+                        disabled={submittingFree || validatingDiscount}
                       >
-                        CONTINUAR AL PAGO <ArrowRight className="w-4 h-4" />
+                        {submittingFree ? (
+                          <><Loader2 className="w-4 h-4 animate-spin" /> {t('checkout.processingFree')}</>
+                        ) : appliedCode && appliedCode.isFree ? (
+                          <>{t('checkout.confirmFreeButton')} <ArrowRight className="w-4 h-4" /></>
+                        ) : (
+                          <>{t('checkout.buyButton')} <ArrowRight className="w-4 h-4" /></>
+                        )}
                       </Button>
                     </form>
                   </motion.div>
@@ -239,15 +372,15 @@ export function CheckoutModal({
                       <button
                         type="button"
                         onClick={() => setStep('details')}
-                        className="text-[10px] font-mono uppercase tracking-widest text-white/40 hover:text-white flex items-center gap-1.5 mb-3 transition-colors"
+                        className="text-[10px] font-mono uppercase tracking-widest text-white/40 hover:text-white flex items-center gap-1.5 mb-3 transition-colors cursor-pointer"
                       >
-                        ← Volver a tus datos
+                        ← {t('checkout.cancel')}
                       </button>
                       <p className="text-[9px] font-mono uppercase tracking-[0.25em] text-accent mb-1">
-                        PASO 2 DE 2
+                        {t('checkout.step2')}
                       </p>
                       <h3 className="font-display text-2xl uppercase tracking-wider text-white">
-                        PAGO SEGURO
+                        {t('checkout.title').toUpperCase()}
                       </h3>
                     </div>
 
@@ -259,6 +392,8 @@ export function CheckoutModal({
                       quantity={quantity}
                       selectedTicket={selectedTicket}
                       marketingConsent={marketingConsent}
+                      discountCodeId={appliedCode?.codeId}
+                      discountAmount={appliedCode?.discountAmount}
                       onClose={handleClose}
                       onSuccess={handleSuccess}
                     />
@@ -279,30 +414,30 @@ export function CheckoutModal({
                     </div>
 
                     <p className="text-[10px] font-mono uppercase tracking-[0.25em] text-accent mb-2">
-                      TRANSACCIÓN EXITOSA
+                      {t('success.transactionSuccess')}
                     </p>
                     <h3 className="font-display text-3xl uppercase tracking-wider text-white mb-2">
-                      ¡GRACIAS POR COMPRAR!
+                      {t('success.title')}
                     </h3>
                     <p className="text-sm text-white/50 mb-6 px-4">
-                      Hola {buyerName.split(' ')[0]}, tu entrada ha sido procesada correctamente y se ha enviado a tu correo.
+                      {t('success.message', { name: buyerName.split(' ')[0] })}
                     </p>
 
                     <div className="border border-dashed border-white/10 bg-[#0a0a0a] p-4 text-left font-mono text-xs text-white/70 space-y-2 mb-8 max-w-sm mx-auto">
                       <div className="flex justify-between">
-                        <span className="text-white/35">ENVIADO A</span>
+                        <span className="text-white/35">{t('success.sentTo')}</span>
                         <span className="text-white truncate max-w-[200px]">{buyerEmail}</span>
                       </div>
                       <div className="flex justify-between border-t border-white/5 pt-2">
-                        <span className="text-white/35">ENTRADA</span>
+                        <span className="text-white/35">{t('success.ticket')}</span>
                         <span className="text-white uppercase">{selectedTicket.name}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-white/35">CANTIDAD</span>
+                        <span className="text-white/35">{t('success.quantity')}</span>
                         <span className="text-white">{quantity}</span>
                       </div>
                       <div className="flex justify-between border-t border-white/5 pt-2 font-bold text-accent">
-                        <span>TOTAL</span>
+                        <span>{t('success.total')}</span>
                         <span>{totalPrice}€</span>
                       </div>
                     </div>
@@ -312,7 +447,7 @@ export function CheckoutModal({
                       onClick={handleClose}
                       className="w-full"
                     >
-                      Cerrar y volver
+                      {t('success.close')}
                     </Button>
                   </motion.div>
                 )}
@@ -343,7 +478,7 @@ export function CheckoutModal({
                   >
                     <button
                       onClick={() => setInfoModal(null)}
-                      className="absolute top-4 right-4 text-white/30 hover:text-white transition-colors p-1"
+                      className="absolute top-4 right-4 text-white/30 hover:text-white transition-colors p-1 cursor-pointer"
                       aria-label="Cerrar"
                     >
                       <X className="w-4 h-4" />
@@ -352,43 +487,43 @@ export function CheckoutModal({
                     {infoModal === 'terms' ? (
                       <div>
                         <h4 className="font-display text-lg uppercase tracking-wider text-white mb-4">
-                          INFORMACIÓN RGPD
+                          {t('gdpr.termsTitle')}
                         </h4>
                         <div className="space-y-3 text-xs text-white/70 leading-relaxed font-mono">
                           <p>
-                            <span className="text-accent font-bold">RESPONSABLE:</span> PartyOn S.L.
+                            <span className="text-accent font-bold">{t('gdpr.responsibleLabel')}:</span> {t('gdpr.responsibleValue')}
                           </p>
                           <p>
-                            <span className="text-accent font-bold">FINALIDAD:</span> Gestión y emisión de entradas, control de acceso al evento y envío de comunicaciones comerciales relacionadas.
+                            <span className="text-accent font-bold">{t('gdpr.purposeLabel')}:</span> {t('gdpr.purposeValue')}
                           </p>
                           <p>
-                            <span className="text-accent font-bold">LEGITIMACIÓN:</span> Ejecución contractual y consentimiento del interesado.
+                            <span className="text-accent font-bold">{t('gdpr.legitimationLabel')}:</span> {t('gdpr.legitimationValue')}
                           </p>
                           <p>
-                            <span className="text-accent font-bold">DESTINATARIOS:</span> No se cederán datos a terceros salvo obligación legal o proveedores de servicios de pago (Stripe).
+                            <span className="text-accent font-bold">{t('gdpr.recipientsLabel')}:</span> {t('gdpr.recipientsValue')}
                           </p>
                           <p>
-                            <span className="text-accent font-bold">DERECHOS:</span> Acceso, rectificación, supresión y portabilidad de sus datos, así como la limitación u oposición a su tratamiento.
+                            <span className="text-accent font-bold">{t('gdpr.rightsLabel')}:</span> {t('gdpr.rightsValue')}
                           </p>
                         </div>
                       </div>
                     ) : (
                       <div>
                         <h4 className="font-display text-lg uppercase tracking-wider text-white mb-4">
-                          POLÍTICA DE PRIVACIDAD
+                          {t('gdpr.privacyTitle')}
                         </h4>
                         <div className="space-y-3 text-xs text-white/70 leading-relaxed font-mono">
                           <p className="text-accent font-bold uppercase tracking-wider">
-                            Derechos de Imagen y Grabación
+                            {t('gdpr.privacySubtitle')}
                           </p>
                           <p>
-                            Al adquirir esta entrada y acceder al evento, el asistente consiente expresamente y autoriza a PartyOn S.L. a realizar grabaciones de vídeo y fotografías en las que pueda aparecer su imagen.
+                            {t('gdpr.privacyP1')}
                           </p>
                           <p>
-                            Estas imágenes y grabaciones podrán ser publicadas y difundidas en las redes sociales oficiales, sitio web y otros canales de comunicación de PartyOn con fines de promoción, marketing y publicidad de los eventos de la marca.
+                            {t('gdpr.privacyP2')}
                           </p>
                           <p>
-                            Si no desea ser filmado o fotografiado, puede comunicarlo directamente al personal de organización o de fotografía en el evento.
+                            {t('gdpr.privacyP3')}
                           </p>
                         </div>
                       </div>
@@ -399,7 +534,7 @@ export function CheckoutModal({
                       onClick={() => setInfoModal(null)}
                       className="w-full mt-6 text-xs"
                     >
-                      Entendido
+                      {t('gdpr.understood')}
                     </Button>
                   </motion.div>
                 </div>

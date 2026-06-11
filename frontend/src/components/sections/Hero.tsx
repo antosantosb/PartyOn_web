@@ -1,5 +1,6 @@
 import { MapPin, Clock } from 'lucide-react';
 import { getCleanImageUrl } from '../../config/api';
+import { useTranslation } from 'react-i18next';
 
 interface HeroProps {
   eventData: {
@@ -19,6 +20,7 @@ interface HeroProps {
 }
 
 export function Hero({ eventData, theme }: HeroProps) {
+  const { t } = useTranslation();
   const hasLineup = !!eventData.lineup && eventData.lineup.trim() !== '';
 
   const handleScrollToTickets = () => {
@@ -204,7 +206,9 @@ export function Hero({ eventData, theme }: HeroProps) {
             id="hero-tickets-btn"
             style={{ fontSize: '0.75rem', padding: '1rem 2rem' }}
           >
-            {eventData.ctaLabel || 'COMPRAR ENTRADA'}
+            {eventData.ctaLabel === 'COMPRAR ENTRADA' || !eventData.ctaLabel
+              ? t('nav.buyTickets')
+              : eventData.ctaLabel}
           </button>
         </div>
       </div>
