@@ -52,7 +52,7 @@ async function testDelivery() {
       },
       theme: {
         primaryColor: theme.primaryColor ?? undefined,
-        backgroundImage: (theme as any).backgroundImage || "/hero.jpg",
+        backgroundImage: (theme as any).backgroundImageMobile || (theme as any).backgroundImage || "/hero.jpg",
       },
       ticket: {
         id: mockTicket.id,

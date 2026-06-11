@@ -2,12 +2,35 @@ import React from 'react';
 import { formatInTimeZone } from 'date-fns-tz';
 import * as path from 'path';
 import * as fs from 'fs';
+import sharp from 'sharp';
 
 /**
  * Redesigned Vertical Concert/Show Ticket - 400 × 800 (Brutalist Theme)
  */
 const W = 400;
 const H = 800;
+const HERO_H = 320;  // altura fija garantizada tras pre-procesado
+const SCALE = 3;     // Multiplicador de densidad de píxeles (3x para pantallas de alta resolución)
+
+/**
+ * Pre-normaliza la imagen hero a dimensiones exactas antes de pasarla al renderer.
+ *
+ * USA fit: 'contain' (nunca recorta) — la imagen se escala para caber entera
+ * dentro de W × HERO_H. El espacio sobrante (letterbox) se rellena con
+ * el color primario del evento, integrándose visualmente con el ticket.
+ *
+ * NO usar fit: 'cover' — recortaría el flyer, pudiendo eliminar el nombre
+ * del artista o elementos clave en los bordes de la imagen.
+ */
+const processHeroImage = async (buffer: Buffer, bgColor = '#0a0a0a'): Promise<Buffer> => {
+  return sharp(buffer)
+    .resize(W * SCALE, HERO_H * SCALE, {
+      fit: 'contain',      // nunca recorta — escala para que quepa entera
+      background: bgColor, // rellena el letterbox con el color del evento
+    })
+    .jpeg({ quality: 92 })
+    .toBuffer();
+};
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 interface TicketData {
@@ -84,6 +107,18 @@ export const generateTicketPDF = async (data: TicketData): Promise<Buffer> => {
   } else {
     console.log('[PDF Service] No flyer URL provided in theme.');
   }
+
+  // Después de cargar flyerSrc exitosamente:
+  // Se pasa el primaryColor del evento para que el letterbox sea invisible
+  if (flyerSrc) {
+    try {
+      flyerSrc = await processHeroImage(flyerSrc, theme.primaryColor ?? '#0a0a0a');
+      console.log(`[PDF Service] Hero image pre-processed to ${W}x${HERO_H}px (contain + bg fill)`);
+    } catch (sharpError) {
+      console.error('[PDF Service] sharp pre-processing failed, using raw buffer:', sharpError);
+      // Continuamos con el buffer original — la Capa 2 (flex) minimizará el daño
+    }
+  }
   
   // 3. Define Styles inside the function so they use the correct StyleSheet instance
   const styles = StyleSheet.create({
@@ -96,7 +131,7 @@ export const generateTicketPDF = async (data: TicketData): Promise<Buffer> => {
     // Top section: flyer or fallback banner
     flyerContainer: {
       width: '100%',
-      height: 420,
+      height: HERO_H,   // 320px — siempre coincide con el buffer pre-procesado
       backgroundColor: '#f0ede8',
       alignItems: 'center',
       justifyContent: 'center',
@@ -104,11 +139,13 @@ export const generateTicketPDF = async (data: TicketData): Promise<Buffer> => {
     flyerImage: {
       width: '100%',
       height: '100%',
-      objectFit: 'contain',
+      // objectFit no es problema aquí porque sharp ya entregó un buffer
+      // exactamente de W × HERO_H — la imagen siempre llena el contenedor.
+      objectFit: 'cover',  // fill el contenedor (el buffer ya tiene las dims exactas)
     },
     fallbackBanner: {
       width: W,
-      height: 420,
+      height: HERO_H,
       backgroundColor: '#0a0a0a',
       justifyContent: 'center',
       alignItems: 'center',
@@ -124,7 +161,7 @@ export const generateTicketPDF = async (data: TicketData): Promise<Buffer> => {
     
     // Middle section: Event Details (off-white, high contrast, clean black text)
     detailsSection: {
-      height: 200,
+      minHeight: 190,         // mínimo garantizado, no desborda la página
       backgroundColor: '#f0ede8',
       paddingHorizontal: 24,
       paddingVertical: 18,
@@ -180,6 +217,7 @@ export const generateTicketPDF = async (data: TicketData): Promise<Buffer> => {
     // Bottom section: Buyer details and QR code
     bottomSection: {
       flex: 1,
+      minHeight: 250,         // garantiza espacio suficiente para el QR (110px) + márgenes
       backgroundColor: '#ffffff',
       paddingHorizontal: 24,
       paddingVertical: 18,

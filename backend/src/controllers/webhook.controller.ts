@@ -137,7 +137,7 @@ export const handleStripeWebhook = async (req: Request, res: Response) => {
           }
 
           const { event } = ticketTypeInfo;
-          const theme = event.theme || { primaryColor: '#00ffcc', backgroundImage: null };
+          const theme = event.theme || { primaryColor: '#00ffcc', backgroundImage: null, backgroundImageMobile: null };
 
           const collectedTickets: { pdfBuffer: Buffer; ticketId: string }[] = [];
 
@@ -156,7 +156,7 @@ export const handleStripeWebhook = async (req: Request, res: Response) => {
                 },
                 theme: {
                   primaryColor: theme.primaryColor ?? undefined,
-                  backgroundImage: theme.backgroundImage ?? undefined,
+                  backgroundImage: theme.backgroundImageMobile || theme.backgroundImage || undefined,
                 },
                 ticket: {
                   id: ticket.id,
